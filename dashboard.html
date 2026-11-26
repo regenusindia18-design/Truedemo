@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TrueShop Member Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css">
+<style>
+  .dash-head { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+  .avatar { width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, var(--gold), #ffe08a); color: var(--green-900); display: grid; place-items: center; font: 800 1.5rem var(--display); }
+  .wallets .card { position: relative; overflow: hidden; }
+  .wallets .card::after { content: attr(data-ico); position: absolute; right: 14px; top: 10px; font-size: 1.8rem; opacity: .25; }
+  .legs { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .legbox { padding: 16px; border-radius: 14px; background: var(--surface-2); }
+  .legbox .v { font: 800 1.5rem var(--display); font-variant-numeric: tabular-nums; }
+  /* genealogy tree */
+  .tree-wrap { overflow-x: auto; padding: 10px 0 4px; }
+  .tree, .tree ul { padding-top: 22px; position: relative; display: flex; justify-content: center; margin: 0; padding-left: 0; }
+  .tree li { list-style: none; text-align: center; position: relative; padding: 22px 6px 0; flex: 1; }
+  .tree li::before, .tree li::after { content: ''; position: absolute; top: 0; right: 50%; border-top: 2px solid var(--line); width: 50%; height: 22px; }
+  .tree li::after { right: auto; left: 50%; border-left: 2px solid var(--line); }
+  .tree li:only-child::before, .tree li:only-child::after { display: none; }
+  .tree li:only-child { padding-top: 0; }
+  .tree li:first-child::before, .tree li:last-child::after { border: 0 none; }
+  .tree li:last-child::before { border-right: 2px solid var(--line); border-radius: 0 6px 0 0; }
+  .tree li:first-child::after { border-radius: 6px 0 0 0; }
+  .tree ul ul::before, .tree > li > ul::before { content: ''; position: absolute; top: 0; left: 50%; border-left: 2px solid var(--line); height: 22px; }
+  .node { display: inline-block; min-width: 92px; padding: 8px 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; transition: transform .2s, box-shadow .2s; font-size: .78rem; }
+  .node:hover { transform: translateY(-3px); box-shadow: var(--shadow); }
+  .node .av { width: 30px; height: 30px; border-radius: 50%; margin: 0 auto 4px; display: grid; place-items: center; color: #fff; font-weight: 700; }
+  .node.me { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(245,200,66,.3); }
+  .node.empty { border-style: dashed; color: var(--ink-3); background: transparent; }
+  .node.inactive .av { background: #94a3b8 !important; }
+  /* steps chart */
+  .steps-chart { display: flex; gap: 10px; align-items: flex-end; height: 150px; margin-top: 10px; }
+  .steps-chart .col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end; }
+  .steps-chart .b { width: 100%; max-width: 42px; border-radius: 8px 8px 3px 3px; background: var(--green-300); transition: height .8s cubic-bezier(.2,.8,.2,1); position: relative; }
+  .steps-chart .b.goal { background: linear-gradient(180deg, var(--gold), var(--green-500)); }
+  .steps-chart .b.today { outline: 2px dashed var(--gold); outline-offset: 2px; }
+  .steps-chart .goal-line { position: absolute; left: 0; right: 0; border-top: 2px dashed var(--ink-3); opacity: .5; }
+  .confetti { position: fixed; top: -10px; width: 9px; height: 14px; z-index: 400; animation: fall linear forwards; }
+  @keyframes fall { to { transform: translateY(105vh) rotate(720deg); } }
+  .closing-anim { animation: pulse 1s ease-in-out 2; }
+  @keyframes pulse { 50% { box-shadow: 0 0 0 8px rgba(245,200,66,.35); } }
+</style>
+</head>
+<body>
+
+<div class="page-head"><div class="container dash-head">
+  <div class="avatar" id="avatar">A</div>
+  <div style="flex:1;min-width:220px">
+    <div class="small" style="color:#9fbcae">Welcome back,</div>
+    <h1 style="font-size:1.9rem;margin:0" id="mName"></h1>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px" id="mChips"></div>
+  </div>
+  <button class="btn btn-gold" id="closeWeek">⚡ Run weekly closing</button>
+</div></div>
+
+<section class="block" style="padding-top:28px">
+  <div class="container">
+    <div class="grid grid-4 wallets" id="wallets"></div>
+
+    <div class="grid grid-2" style="margin-top:22px">
+      <div class="card" id="binaryCard">
+        <h3>⚡ Binary: week <span id="wk"></span></h3>
+        <div class="legs">
+          <div class="legbox"><div class="tiny muted">LEFT · new this week</div><div class="v" id="pl"></div><div class="tiny muted">+ carry <span id="cl"></span></div></div>
+          <div class="legbox"><div class="tiny muted">RIGHT · new this week</div><div class="v" id="pr"></div><div class="tiny muted">+ carry <span id="cr"></span></div></div>
+        </div>
+        <div class="row" style="margin-top:10px"><span>Projected matched BV</span><b id="pm"></b></div>
+        <div class="row"><span>Projected binary @ 40%</span><b id="pb" style="color:var(--green-500)"></b></div>
+        <div class="row"><span>Weekly cap (<span id="pkgName"></span>)</span><b id="pc"></b></div>
+        <div class="tiny muted">Tip: place orders in the <a href="shop.html">Shop</a> to add BV to your left leg, or add team sales below.</div>
+        <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" data-add="L">+ 2,500 BV left (team sale)</button>
+          <button class="btn btn-ghost btn-sm" data-add="R">+ 2,500 BV right (team sale)</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>🏆 Rank progress</h3>
+        <div id="rankBox"></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:22px">
+      <h3>🌳 My genealogy (binary tree)</h3>
+      <p class="small muted" style="margin:0">Click any member to see their details. Grey members haven't repurchased this month.</p>
+      <div class="tree-wrap"><ul class="tree" id="tree"></ul></div>
+    </div>
+
+    <div class="grid grid-2" style="margin-top:22px">
+      <div class="card">
+        <h3>🔁 Generation income (this month)</h3>
+        <div class="table-wrap" style="box-shadow:none"><table><thead><tr><th>Level</th><th class="r">Repurchase BV</th><th class="r">Rate</th><th class="r">Income</th></tr></thead><tbody id="gen"></tbody></table></div>
+        <div class="row" style="margin-top:10px"><span>🤝 Leadership check match <span class="tiny muted">(10% of directs' binary + generation)</span></span><b id="lead"></b></div>
+      </div>
+
+      <div class="card" id="steps">
+        <h3>👟 TrueSteps</h3>
+        <div class="row" style="padding-top:0"><span>Today</span><b id="stToday"></b></div>
+        <div class="bar"><i id="stBar" style="width:0"></i></div>
+        <div class="steps-chart" id="stChart"></div>
+        <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+          <button class="btn btn-green btn-sm" id="syncSteps">📲 Sync pedometer</button>
+          <button class="btn btn-gold btn-sm" id="claimSteps">Claim TruePoints</button>
+        </div>
+        <p class="tiny muted" style="margin:8px 0 0">5,000 steps = 10 TruePoints · 1 TruePoint = ₹1 off · 45-day expiry</p>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:22px">
+      <div class="row" style="padding-top:0"><h3 style="margin:0">📒 Commission ledger</h3><button class="btn btn-green btn-sm" id="withdraw">Withdraw to bank</button></div>
+      <div class="table-wrap" style="box-shadow:none;margin-top:10px"><table><thead><tr><th>Date</th><th>Type</th><th>Details</th><th class="r">Gross</th></tr></thead><tbody id="ledger"></tbody></table></div>
+    </div>
+  </div>
+</section>
+
+<script src="assets/js/plan.js"></script>
+<script src="assets/js/app.js"></script>
+<script src="assets/js/dashboard.js"></script>
+</body>
+</html>
