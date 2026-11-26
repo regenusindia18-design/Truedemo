@@ -34,6 +34,10 @@
     { key: 'leadership', name: 'Leadership Check Match',   phase: 'Team Earning',   headline: '10% Downline Income', actual: 0.05, base: 'total',   rule: "10% of direct downline's earned Binary & Generation bonus" },
     { key: 'cto',        name: 'CTO Royalty & Lifestyle',  phase: 'Leadership Pool', headline: '10% CTO BV',      actual: 0.10, base: 'total',      rule: 'Bronze Club 4%, Travel & Car Pool 3%, Crown Royalty 3%' },
   ];
+  /* Categorical chart colours, fixed order per stream (validated for CVD
+   * separation in light + dark). Company retention uses neutral slate. */
+  const STREAM_COLORS = ['#16a34a', '#0284c7', '#ca8a04', '#7c3aed', '#ea580c', '#db2777'];
+  const RETAINED_COLOR = '#64748b';
   const HARD_CAP = 0.70;          // 70% of total BV — absolute ceiling
   const HEADLINE_TOTAL = 0.95;    // brochure figure (see compliance note)
 
@@ -208,7 +212,7 @@
   }
 
   global.TrueShopPlan = {
-    COMPANY, CATEGORIES, INCOME_STREAMS, HARD_CAP, HEADLINE_TOTAL, BINARY_RATE, GENERATION_LEVELS,
+    COMPANY, CATEGORIES, INCOME_STREAMS, STREAM_COLORS, RETAINED_COLOR, HARD_CAP, HEADLINE_TOTAL, BINARY_RATE, GENERATION_LEVELS,
     DIRECT_RATE, CASHBACK_RATE, LEADERSHIP_RATE, CTO_POOLS, PACKAGES, WALLET_SPLIT, DEDUCTIONS, STEPS,
     ESCROW_DAYS, BUYBACK_DAYS, RANKS,
     round2, inr, num, pct,

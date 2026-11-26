@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TrueShop Payout Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css">
+<style>
+  .sim-layout { display: grid; grid-template-columns: 340px 1fr; gap: 24px; align-items: start; }
+  @media (max-width: 960px) { .sim-layout { grid-template-columns: 1fr; } }
+  .sim-layout aside { position: sticky; top: 84px; }
+  @media (max-width: 960px) { .sim-layout aside { position: static; } }
+  .gauge { position: relative; height: 18px; border-radius: 99px; background: var(--surface-2); margin: 14px 0 26px; }
+  .gauge > i { position: absolute; inset: 0 auto 0 0; border-radius: 99px; background: var(--green-500); transition: width .8s cubic-bezier(.2,.8,.2,1); }
+  .gauge .mark { position: absolute; top: -6px; bottom: -6px; width: 2px; background: var(--danger); }
+  .gauge .mark span { position: absolute; top: 28px; left: 50%; transform: translateX(-50%); font-size: .72rem; font-weight: 700; color: var(--danger); white-space: nowrap; }
+  .chart { position: relative; }
+  .cols { display: flex; align-items: flex-end; gap: 6px; height: 240px; border-bottom: 1px solid var(--line); padding-top: 10px; }
+  .cols .c { flex: 1; display: flex; flex-direction: column-reverse; gap: 2px; height: 100%; cursor: pointer; }
+  .cols .c > i { display: block; transition: height .7s cubic-bezier(.2,.8,.2,1); }
+  .cols .c > i:last-child { border-radius: 4px 4px 0 0; }
+  .cols .c:hover > i { filter: brightness(1.12); }
+  .xl { display: flex; gap: 6px; margin-top: 6px; }
+  .xl span { flex: 1; text-align: center; font-size: .72rem; color: var(--ink-3); }
+  .tip { position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-lg); border-radius: 10px; padding: 10px 12px; font-size: .8rem; min-width: 190px; z-index: 5; opacity: 0; transition: opacity .15s; }
+  .tip.on { opacity: 1; }
+  .tip .k { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; }
+  .yl { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--line); font-size: .68rem; color: var(--ink-3); }
+</style>
+</head>
+<body>
+
+<div class="page-head"><div class="container">
+  <div class="eyebrow">Financial model</div>
+  <h1 style="font-size:clamp(1.8rem,4vw,2.6rem)">Payout Simulator</h1>
+  <p>A live version of the TrueShop 70% BV Simulator workbook. Edit the yellow assumptions to see company BV, payout per income stream and Regenus India's retention, with the 70% hard cap enforced automatically.</p>
+</div></div>
+
+<section class="block" style="padding-top:28px">
+  <div class="container">
+    <div class="tabs" id="tabs"><button class="active" data-t="company">🏢 Company simulator</button><button data-t="personal">👤 My earnings calculator</button></div>
+
+    <!-- ================= COMPANY ================= -->
+    <div id="t-company" class="sim-layout">
+      <aside class="card">
+        <h3>Business assumptions</h3>
+        <label class="field">Monthly new active joinings<input class="yellow" type="number" id="joinings" value="500" min="0"></label>
+        <label class="field">Average first order DP (₹)<input class="yellow" type="number" id="firstOrderDP" value="2000" min="0"></label>
+        <label class="field">Average BV ratio (% of DP)<input class="yellow" type="number" id="bvRatio" value="50" min="0" max="100"></label>
+        <label class="field">Monthly active repurchase members<input class="yellow" type="number" id="repurchaseMembers" value="1200" min="0"></label>
+        <label class="field">Average monthly repurchase DP (₹)<input class="yellow" type="number" id="repurchaseDP" value="1200" min="0"></label>
+        <hr style="border:0;border-top:1px solid var(--line);margin:6px 0 14px">
+        <label class="field">Monthly growth for projection (%)<input class="yellow" type="number" id="growth" value="12" min="-50" max="100"></label>
+        <button class="btn btn-ghost btn-sm" id="resetSim">Reset to workbook values</button>
+      </aside>
+
+      <div>
+        <div class="grid grid-4" id="kpis"></div>
+
+        <div class="card" style="margin-top:20px">
+          <div class="row" style="padding-top:0"><h3 style="margin:0">Payout vs 70% hard cap</h3><span class="chip" id="capChip"></span></div>
+          <div class="gauge"><i id="gaugeFill"></i><div class="mark" style="left:70%"><span>70% cap</span></div></div>
+          <div class="stack" id="stack"></div>
+          <div class="legend" id="legend"></div>
+        </div>
+
+        <div class="table-wrap" style="margin-top:20px">
+          <table><thead><tr><th>Income module</th><th>Brochure display</th><th class="r">Actual outflow % (total BV)</th><th class="r">Applicable BV base</th><th class="r">Estimated payout</th></tr></thead><tbody id="simTable"></tbody></table>
+        </div>
+
+        <div class="card" style="margin-top:20px">
+          <h3>12-month projection</h3>
+          <p class="small muted" style="margin:0">Monthly total BV split into member payout and company retention, with joinings and repurchase members growing at the rate you set.</p>
+          <div class="legend" style="margin:10px 0 0"><span><i style="background:var(--green-500)"></i>Member payout</span><span><i style="background:#64748b"></i>Company retained</span></div>
+          <div class="chart" id="projChart"></div>
+          <div class="row" style="margin-top:14px"><span>12-month total BV</span><b id="p12bv"></b></div>
+          <div class="row"><span>12-month member payout</span><b id="p12pay"></b></div>
+          <div class="row"><span>12-month company retention</span><b id="p12ret"></b></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= PERSONAL ================= -->
+    <div id="t-personal" class="sim-layout hidden">
+      <aside class="card">
+        <h3>Your month</h3>
+        <label class="field">Your ID
+          <select id="pPkg"></select></label>
+        <label class="field">Own monthly purchase DP (₹)<input class="yellow" type="number" id="pSelf" value="3000"></label>
+        <label class="field">Directs' first-order BV this month<input class="yellow" type="number" id="pDirect" value="5000"></label>
+        <label class="field">Left team BV per week<input class="yellow" type="number" id="pLeft" value="12000"></label>
+        <label class="field">Right team BV per week<input class="yellow" type="number" id="pRight" value="9000"></label>
+        <label class="field">Repurchase BV per level (L1→L6)<input class="yellow" id="pGen" value="4000, 9000, 15000, 20000, 18000, 12000"></label>
+        <label class="field">Directs' combined binary + generation income (₹)<input class="yellow" type="number" id="pLead" value="20000"></label>
+        <label class="field">Average shopping BV ratio
+          <select id="pCat"></select></label>
+      </aside>
+      <div>
+        <div class="grid grid-4" id="pKpis"></div>
+        <div class="table-wrap" style="margin-top:20px"><table><thead><tr><th>Income stream</th><th>How it's calculated</th><th class="r">Monthly (₹)</th></tr></thead><tbody id="pTable"></tbody></table></div>
+        <div class="card" style="margin-top:20px">
+          <h3>Where the money goes</h3>
+          <div class="grid grid-4" id="pSplit"></div>
+        </div>
+        <div class="disclaimer" style="margin-top:20px">Illustrative only. CTO pool shares depend on company-wide turnover and qualified rank holders, so they are excluded here. Actual earnings depend on genuine product sales and are not guaranteed.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script src="assets/js/plan.js"></script>
+<script src="assets/js/app.js"></script>
+<script src="assets/js/simulator.js"></script>
+</body>
+</html>

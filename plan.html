@@ -105,7 +105,7 @@
 <script>
 (function () {
   const P = TrueShopPlan;
-  const COLORS = ['#38bdf8', '#40916c', '#f5c842', '#2d6a4f', '#a855f7', '#f97316'];
+  const COLORS = P.STREAM_COLORS;
 
   cats.innerHTML = Object.entries(P.CATEGORIES).map(([k, c]) => `
     <div class="card card-hover reveal">
@@ -126,8 +126,8 @@
 
   const total = P.INCOME_STREAMS.reduce((a, s) => a + s.actual, 0);
   stack.innerHTML = P.INCOME_STREAMS.map((s, i) => `<div data-f="${s.actual * 100}" style="background:${COLORS[i]}" title="${s.name}: ${P.pct(s.actual)}">${P.pct(s.actual)}</div>`).join('')
-    + `<div data-f="${(1 - total) * 100}" style="background:#64748b">Company ${P.pct(1 - total)}</div>`;
-  legend.innerHTML = P.INCOME_STREAMS.map((s, i) => `<span><i style="background:${COLORS[i]}"></i>${s.name}</span>`).join('') + '<span><i style="background:#64748b"></i>Retained by Regenus India</span>';
+    + `<div data-f="${(1 - total) * 100}" style="background:${P.RETAINED_COLOR}">Company ${P.pct(1 - total)}</div>`;
+  legend.innerHTML = P.INCOME_STREAMS.map((s, i) => `<span><i style="background:${COLORS[i]}"></i>${s.name}</span>`).join('') + `<span><i style="background:${P.RETAINED_COLOR}"></i>Retained by Regenus India</span>`;
   setTimeout(() => TS.$$('#stack > div').forEach((d) => (d.style.flexBasis = d.dataset.f + '%')), 300);
 
   pkgs.innerHTML = P.PACKAGES.map((p) => `<tr><td><b>${p.name}</b></td><td class="r num">${P.num(p.bv)}</td><td class="r num">${P.inr(p.weeklyCap)}</td></tr>`).join('');
