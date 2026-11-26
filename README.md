@@ -2,6 +2,8 @@
 
 **Shop Karo | Share Karo | Earn Karo.** A clickable demo of the TrueShop e-commerce and hybrid direct-selling platform by **Regenus India Private Limited** (est. 2018, Maharashtra).
 
+**Live demo:** https://regenusindia18-design.github.io/Truedemo/
+
 The demo is built from three source documents in this repo:
 
 | Source | Implemented in |
