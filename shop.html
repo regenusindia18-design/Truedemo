@@ -9,8 +9,17 @@
 <link rel="stylesheet" href="assets/css/style.css">
 <style>
   .shop-layout { display: grid; grid-template-columns: 1fr 360px; gap: 24px; align-items: start; }
+  .shop-layout > * { min-width: 0; }
   @media (max-width: 980px) { .shop-layout { grid-template-columns: 1fr; } }
   .products { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 18px; }
+  @media (max-width: 560px) {
+    .products { grid-template-columns: 1fr 1fr; gap: 12px; }
+    .p-img { height: 110px; font-size: 3rem; }
+    .p-body { padding: 10px 12px 12px; }
+    .p-body h4 { font-size: .85rem; }
+  }
+  .cart-fab { display: none; position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 60; box-shadow: var(--shadow-lg); }
+  @media (max-width: 980px) { .cart-fab.has { display: inline-flex; } }
   .p-card { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
   .p-img { height: 150px; display: grid; place-items: center; font-size: 4rem; background: linear-gradient(135deg, var(--green-100), var(--surface-2)); position: relative; transition: transform .4s; }
   .p-card:hover .p-img { transform: scale(1.04); }
@@ -52,6 +61,7 @@
       <div class="card" id="orders"></div>
     </div>
 
+    <a href="#cart" class="btn btn-gold cart-fab" id="cartFab"></a>
     <aside class="card cart" id="cart">
       <h3>🛒 Your cart</h3>
       <div id="cartItems"></div>
@@ -105,7 +115,7 @@
     const cart = S().cart;
     if (!cart.length) {
       cartItems.innerHTML = '<p class="muted small">Your cart is empty. Add products to see BV, savings and cashback update live.</p>';
-      cartSummary.innerHTML = ''; return;
+      cartSummary.innerHTML = ''; cartFab.classList.remove('has'); return;
     }
     cartItems.innerHTML = cart.map((i, idx) => `<div class="cart-item"><span class="e">${i.emoji}</span>
       <div><div class="small" style="font-weight:600;line-height:1.3">${TS.esc(i.name)}</div><div class="tiny muted">${P.inr(i.dp)} · ${P.num(P.productBV(i.dp, i.category))} BV each</div></div>
@@ -125,6 +135,8 @@
       <div class="row"><span>Smart Shopper cashback (5%)</span><b>${P.inr(q.cashback, 2)}</b></div>
       <button class="btn btn-gold" style="width:100%;margin-top:12px" id="checkout">Place order</button>
       <p class="tiny muted" style="margin:8px 0 0">0 BV is generated on the TruePoints/cashback portion (zero-leakage rule).</p>`;
+    cartFab.classList.add('has');
+    cartFab.textContent = `🛒 ${cart.reduce((a, i) => a + i.qty, 0)} items · ${P.inr(q.netPaid)} · ${P.num(q.bv)} BV`;
     TS.$('#pts').oninput = (e) => { pointsWanted = +e.target.value; renderCart(); };
     TS.$('#checkout').onclick = () => checkout(q);
     TS.updateCartBadge();

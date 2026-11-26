@@ -55,8 +55,8 @@
       months.push({ m: m + 1, bv: s.totalBV, pay: s.totalPayout, ret: s.retention, ratio: s.payoutRatio });
     }
     const max = Math.max(1, ...months.map((x) => x.bv));
-    const ticks = [0.25, 0.5, 0.75, 1].map((t) => `<div class="yl" style="bottom:${t * 230 + 24}px">${short(max * t)}</div>`).join('');
-    $('#projChart').innerHTML = `${ticks}<div class="cols">${months.map((x, i) => `
+    const ticks = [0.25, 0.5, 0.75, 1].map((t) => `<div class="yl" style="bottom:${t * 230}px"><span>${short(max * t)}</span></div>`).join('');
+    $('#projChart').innerHTML = `<div class="cols">${ticks}${months.map((x, i) => `
         <div class="c" data-i="${i}"><i style="height:${(x.pay / max) * 230}px;background:var(--green-500)"></i><i style="height:${(x.ret / max) * 230}px;background:${P.RETAINED_COLOR}"></i></div>`).join('')}</div>
       <div class="xl">${months.map((x) => `<span>M${x.m}</span>`).join('')}</div><div class="tip" id="tip"></div>`;
     const tip = $('#tip'), chart = $('#projChart');

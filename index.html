@@ -26,7 +26,8 @@
   .teaser label { color: #cfe3d8; }
   .teaser .out { background: rgba(0,0,0,.18); border-radius: 16px; padding: 20px; }
   .teaser .out .big { font-family: var(--display); font-size: 2.4rem; color: var(--gold); font-weight: 800; }
-  .walk { display: flex; align-items: center; gap: 22px; }
+  .walk { display: flex; flex-wrap: wrap; align-items: center; gap: 22px; }
+  .walk .btn { white-space: normal; }
   .ring { --p: 65; width: 130px; height: 130px; border-radius: 50%; background: conic-gradient(var(--gold) calc(var(--p) * 1%), var(--surface-2) 0); display: grid; place-items: center; flex: 0 0 auto; transition: --p 1s; }
   .ring > div { width: 104px; height: 104px; border-radius: 50%; background: var(--surface); display: grid; place-items: center; text-align: center; font-weight: 700; font-family: var(--display); }
 </style>

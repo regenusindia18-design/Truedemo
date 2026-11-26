@@ -9,6 +9,9 @@
 <link rel="stylesheet" href="assets/css/style.css">
 <style>
   .sim-layout { display: grid; grid-template-columns: 340px 1fr; gap: 24px; align-items: start; }
+  .sim-layout > * { min-width: 0; }
+  .kpis { grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); }
+  .kpis .value { font-size: 1.45rem; }
   @media (max-width: 960px) { .sim-layout { grid-template-columns: 1fr; } }
   .sim-layout aside { position: sticky; top: 84px; }
   @media (max-width: 960px) { .sim-layout aside { position: static; } }
@@ -17,8 +20,9 @@
   .gauge .mark { position: absolute; top: -6px; bottom: -6px; width: 2px; background: var(--danger); }
   .gauge .mark span { position: absolute; top: 28px; left: 50%; transform: translateX(-50%); font-size: .72rem; font-weight: 700; color: var(--danger); white-space: nowrap; }
   .chart { position: relative; }
-  .cols { display: flex; align-items: flex-end; gap: 6px; height: 240px; border-bottom: 1px solid var(--line); padding-top: 10px; }
-  .cols .c { flex: 1; display: flex; flex-direction: column-reverse; gap: 2px; height: 100%; cursor: pointer; }
+  .cols, .xl { padding-left: 56px; }
+  .cols { position: relative; display: flex; align-items: flex-end; gap: 6px; height: 240px; border-bottom: 1px solid var(--line); padding-top: 10px; }
+  .cols .c { position: relative; z-index: 1; flex: 1; display: flex; flex-direction: column-reverse; gap: 2px; height: 100%; cursor: pointer; }
   .cols .c > i { display: block; transition: height .7s cubic-bezier(.2,.8,.2,1); }
   .cols .c > i:last-child { border-radius: 4px 4px 0 0; }
   .cols .c:hover > i { filter: brightness(1.12); }
@@ -27,7 +31,8 @@
   .tip { position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-lg); border-radius: 10px; padding: 10px 12px; font-size: .8rem; min-width: 190px; z-index: 5; opacity: 0; transition: opacity .15s; }
   .tip.on { opacity: 1; }
   .tip .k { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; }
-  .yl { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--line); font-size: .68rem; color: var(--ink-3); }
+  .yl { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--line); z-index: 0; }
+  .yl span { position: absolute; left: 0; top: -8px; font-size: .68rem; color: var(--ink-3); background: var(--surface); padding-right: 4px; }
 </style>
 </head>
 <body>
@@ -57,7 +62,7 @@
       </aside>
 
       <div>
-        <div class="grid grid-4" id="kpis"></div>
+        <div class="grid kpis" id="kpis"></div>
 
         <div class="card" style="margin-top:20px">
           <div class="row" style="padding-top:0"><h3 style="margin:0">Payout vs 70% hard cap</h3><span class="chip" id="capChip"></span></div>
@@ -73,7 +78,7 @@
         <div class="card" style="margin-top:20px">
           <h3>12-month projection</h3>
           <p class="small muted" style="margin:0">Monthly total BV split into member payout and company retention, with joinings and repurchase members growing at the rate you set.</p>
-          <div class="legend" style="margin:10px 0 0"><span><i style="background:var(--green-500)"></i>Member payout</span><span><i style="background:#64748b"></i>Company retained</span></div>
+          <div class="legend" style="margin:10px 0 14px"><span><i style="background:var(--green-500)"></i>Member payout</span><span><i style="background:#64748b"></i>Company retained</span></div>
           <div class="chart" id="projChart"></div>
           <div class="row" style="margin-top:14px"><span>12-month total BV</span><b id="p12bv"></b></div>
           <div class="row"><span>12-month member payout</span><b id="p12pay"></b></div>
@@ -98,7 +103,7 @@
           <select id="pCat"></select></label>
       </aside>
       <div>
-        <div class="grid grid-4" id="pKpis"></div>
+        <div class="grid kpis" id="pKpis"></div>
         <div class="table-wrap" style="margin-top:20px"><table><thead><tr><th>Income stream</th><th>How it's calculated</th><th class="r">Monthly (₹)</th></tr></thead><tbody id="pTable"></tbody></table></div>
         <div class="card" style="margin-top:20px">
           <h3>Where the money goes</h3>
