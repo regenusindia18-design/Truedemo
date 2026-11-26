@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TrueShop Store</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css">
+<style>
+  .shop-layout { display: grid; grid-template-columns: 1fr 360px; gap: 24px; align-items: start; }
+  @media (max-width: 980px) { .shop-layout { grid-template-columns: 1fr; } }
+  .products { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 18px; }
+  .p-card { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+  .p-img { height: 150px; display: grid; place-items: center; font-size: 4rem; background: linear-gradient(135deg, var(--green-100), var(--surface-2)); position: relative; transition: transform .4s; }
+  .p-card:hover .p-img { transform: scale(1.04); }
+  .p-img .chip { position: absolute; top: 10px; left: 10px; }
+  .p-img .off { position: absolute; top: 10px; right: 10px; background: var(--danger); color: #fff; font-weight: 700; font-size: .75rem; padding: 3px 8px; border-radius: 6px; }
+  .p-body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .p-body h4 { font-family: var(--font); font-size: .95rem; margin: 0; font-weight: 600; min-height: 2.6em; }
+  .price { display: flex; align-items: baseline; gap: 8px; }
+  .price b { font-size: 1.2rem; font-family: var(--display); }
+  .price s { color: var(--ink-3); font-size: .85rem; }
+  .p-body .btn { margin-top: auto; }
+  .cart { position: sticky; top: 84px; }
+  .cart-item { display: grid; grid-template-columns: 40px 1fr auto; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px dashed var(--line); }
+  .cart-item .e { font-size: 1.6rem; }
+  .qty { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+  .qty button { border: 0; background: var(--surface-2); color: var(--ink); width: 26px; height: 26px; cursor: pointer; font-weight: 700; }
+  .qty span { width: 28px; text-align: center; font-size: .85rem; }
+  .bv-pop { position: fixed; pointer-events: none; font-weight: 800; color: var(--green-500); z-index: 300; animation: pop 1s ease-out forwards; font-family: var(--display); }
+  @keyframes pop { to { transform: translateY(-60px); opacity: 0 } }
+  .order { display: grid; grid-template-columns: 1fr auto; gap: 10px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+</style>
+</head>
+<body>
+
+<div class="page-head"><div class="container">
+  <div class="eyebrow">TrueShop Store</div>
+  <h1 style="font-size:clamp(1.8rem,4vw,2.6rem)">Shop smart. Every order builds BV.</h1>
+  <p>Member prices (DP) sit up to 40% below MRP. Redeem TruePoints for up to 10% off, and earn 5% of BV back as cashback.</p>
+</div></div>
+
+<section class="block" style="padding-top:32px">
+  <div class="container shop-layout">
+    <div>
+      <div class="tabs" id="filters"></div>
+      <div class="products" id="products"></div>
+
+      <h2 style="margin-top:48px" id="orders-h">My orders</h2>
+      <p class="muted small">BV stays in <b>Pending_Escrow</b> for 7 days after delivery. A return inside the window reverses the BV and any commission before payout closing.</p>
+      <div class="card" id="orders"></div>
+    </div>
+
+    <aside class="card cart" id="cart">
+      <h3>🛒 Your cart</h3>
+      <div id="cartItems"></div>
+      <div id="cartSummary"></div>
+    </aside>
+  </div>
+</section>
+
+<script src="assets/js/plan.js"></script>
+<script src="assets/js/app.js"></script>
+<script src="assets/js/products.js"></script>
+<script>
+(function () {
+  const P = TrueShopPlan, S = () => TS.state;
+  const products = window.TS_PRODUCTS;
+  let filter = 'all';
+
+  filters.innerHTML = [['all', 'All products']].concat(Object.entries(P.CATEGORIES).map(([k, c]) => [k, `${c.icon} ${c.label.split(' ')[0]} · ${P.pct(c.bvRatio)} BV`]))
+    .map(([k, l]) => `<button data-f="${k}" class="${k === filter ? 'active' : ''}">${l}</button>`).join('');
+  filters.onclick = (e) => { const b = e.target.closest('button'); if (!b) return; filter = b.dataset.f; TS.$$('button', filters).forEach((x) => x.classList.toggle('active', x === b)); renderProducts(); };
+
+  function renderProducts() {
+    products_el().innerHTML = products.filter((p) => filter === 'all' || p.category === filter).map((p) => {
+      const off = Math.round((1 - p.dp / p.mrp) * 100);
+      return `<div class="card card-hover p-card">
+        <div class="p-img">${p.emoji}${p.tag ? `<span class="chip chip-gold">${p.tag}</span>` : ''}<span class="off">${off}% OFF</span></div>
+        <div class="p-body">
+          <span class="tiny muted">${P.CATEGORIES[p.category].label}</span>
+          <h4>${TS.esc(p.name)}</h4>
+          <div class="price"><b>${P.inr(p.dp)}</b><s>${P.inr(p.mrp)}</s></div>
+          <div><span class="chip">${P.num(P.productBV(p.dp, p.category))} BV</span></div>
+          <button class="btn btn-green btn-sm" data-add="${p.id}">Add to cart</button>
+        </div></div>`;
+    }).join('');
+  }
+  const products_el = () => document.getElementById('products');
+  products_el().addEventListener('click', (e) => {
+    const b = e.target.closest('[data-add]'); if (!b) return;
+    const p = products.find((x) => x.id === b.dataset.add);
+    const line = S().cart.find((i) => i.id === p.id);
+    line ? line.qty++ : S().cart.push({ id: p.id, name: p.name, emoji: p.emoji, mrp: p.mrp, dp: p.dp, category: p.category, qty: 1 });
+    TS.save(); renderCart();
+    const r = b.getBoundingClientRect(); const pop = document.createElement('div');
+    pop.className = 'bv-pop'; pop.textContent = '+' + P.num(P.productBV(p.dp, p.category)) + ' BV';
+    pop.style.left = r.left + r.width / 2 - 30 + 'px'; pop.style.top = r.top - 10 + 'px';
+    document.body.appendChild(pop); setTimeout(() => pop.remove(), 1000);
+  });
+
+  let pointsWanted = null;
+  function renderCart() {
+    const cart = S().cart;
+    if (!cart.length) {
+      cartItems.innerHTML = '<p class="muted small">Your cart is empty. Add products to see BV, savings and cashback update live.</p>';
+      cartSummary.innerHTML = ''; return;
+    }
+    cartItems.innerHTML = cart.map((i, idx) => `<div class="cart-item"><span class="e">${i.emoji}</span>
+      <div><div class="small" style="font-weight:600;line-height:1.3">${TS.esc(i.name)}</div><div class="tiny muted">${P.inr(i.dp)} · ${P.num(P.productBV(i.dp, i.category))} BV each</div></div>
+      <div class="qty"><button data-q="${idx}" data-d="-1">−</button><span>${i.qty}</span><button data-q="${idx}" data-d="1">+</button></div></div>`).join('');
+    const avail = S().wallets.points + Math.floor(S().wallets.cashback);
+    const q = P.priceCart(cart, avail, pointsWanted ?? avail);
+    cartSummary.innerHTML = `
+      <div class="row"><span>MRP total</span><span class="num"><s>${P.inr(q.mrp)}</s></span></div>
+      <div class="row"><span>Member price (DP)</span><b>${P.inr(q.dp)}</b></div>
+      <div class="row" style="color:var(--green-500)"><span>You save</span><b>${P.inr(q.savings)}</b></div>
+      <div style="padding:10px 0;border-top:1px dashed var(--line)">
+        <div class="row" style="padding:0"><span class="small">Redeem TruePoints + cashback <span class="tiny muted">(${P.num(avail)} available, max 10% = ${P.num(q.maxPoints)})</span></span><b>−${P.inr(q.discount)}</b></div>
+        <input type="range" id="pts" min="0" max="${Math.min(avail, q.maxPoints)}" value="${q.pointsUsed}">
+      </div>
+      <div class="row"><span><b>You pay</b></span><b style="font-size:1.3rem">${P.inr(q.netPaid)}</b></div>
+      <div class="row"><span>BV earned <span class="tiny muted">(on net paid)</span></span><b><span class="chip">${P.num(q.bv)} BV</span></b></div>
+      <div class="row"><span>Smart Shopper cashback (5%)</span><b>${P.inr(q.cashback, 2)}</b></div>
+      <button class="btn btn-gold" style="width:100%;margin-top:12px" id="checkout">Place order</button>
+      <p class="tiny muted" style="margin:8px 0 0">0 BV is generated on the TruePoints/cashback portion (zero-leakage rule).</p>`;
+    TS.$('#pts').oninput = (e) => { pointsWanted = +e.target.value; renderCart(); };
+    TS.$('#checkout').onclick = () => checkout(q);
+    TS.updateCartBadge();
+  }
+  cartItems.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-q]'); if (!b) return;
+    const it = S().cart[+b.dataset.q]; it.qty += +b.dataset.d;
+    if (it.qty <= 0) S().cart.splice(+b.dataset.q, 1);
+    TS.save(); renderCart();
+  });
+
+  function checkout(q) {
+    TS.modal('Confirm payment', `
+      <p class="muted small">Demo checkout: no real payment is taken.</p>
+      <div class="row"><span>Amount</span><b>${P.inr(q.netPaid)}</b></div>
+      <div class="row"><span>Pay via</span><select class="input" style="max-width:180px;margin:0"><option>UPI</option><option>Card</option><option>NetBanking</option></select></div>
+      <div class="row"><span>BV to escrow</span><b>${P.num(q.bv)} BV</b></div>
+      <button class="btn btn-gold" id="pay" style="width:100%;margin-top:14px">Pay ${P.inr(q.netPaid)}</button>`, (body, close) => {
+      TS.$('#pay', body).onclick = () => {
+        const s = S();
+        // Spend TruePoints first, then cashback
+        let use = q.pointsUsed; const fromPts = Math.min(use, s.wallets.points);
+        s.wallets.points -= fromPts; s.wallets.cashback = P.round2(s.wallets.cashback - (use - fromPts));
+        s.wallets.cashback = P.round2(s.wallets.cashback + q.cashback);
+        s.orders.unshift({ id: 'ORD' + Date.now().toString().slice(-7), t: Date.now(), items: s.cart.map((i) => ({ name: i.name, qty: i.qty, emoji: i.emoji })), paid: q.netPaid, bv: q.bv, cashback: q.cashback, status: 'Pending_Escrow' });
+        s.binary.pendingLeft += Math.round(q.bv); // self-purchase BV flows to the placement leg in the demo
+        s.cart = []; pointsWanted = null; TS.save(); close();
+        renderCart(); renderOrders();
+        TS.toast(`✅ Order placed! <b>${P.num(q.bv)} BV</b> is in escrow and ${P.inr(q.cashback, 2)} cashback was credited.`, 4000);
+      };
+    });
+  }
+
+  function renderOrders() {
+    const os = S().orders;
+    orders.innerHTML = os.length ? os.map((o, i) => {
+      const ageDays = (Date.now() - o.t) / TS.DAY;
+      const left = Math.max(0, P.ESCROW_DAYS - ageDays);
+      const st = o.status === 'Returned' ? '<span class="chip chip-red">Returned · BV reversed</span>'
+        : left > 0 ? `<span class="chip chip-warn">Pending_Escrow · ${Math.ceil(left)}d left</span>` : '<span class="chip">Confirmed</span>';
+      return `<div class="order"><div><b>${o.id}</b> ${st}<div class="small muted">${o.items.map((x) => `${x.emoji} ${TS.esc(x.name)} ×${x.qty}`).join(', ')}</div>
+        <div class="tiny muted">${new Date(o.t).toLocaleString('en-IN')} · Paid ${P.inr(o.paid)} · ${P.num(o.bv)} BV</div></div>
+        <div>${o.status !== 'Returned' && left > 0 ? `<button class="btn btn-ghost btn-sm" data-ret="${i}">Return</button>` : ''}</div></div>`;
+    }).join('') : '<p class="muted small" style="margin:0">No orders yet.</p>';
+  }
+  orders.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-ret]'); if (!b) return;
+    const s = S(), o = s.orders[+b.dataset.ret];
+    o.status = 'Returned';
+    s.binary.pendingLeft = Math.max(0, s.binary.pendingLeft - Math.round(o.bv));
+    s.wallets.cashback = Math.max(0, P.round2(s.wallets.cashback - o.cashback));
+    TS.save(); renderOrders();
+    TS.toast(`↩️ ${o.id} returned. ${P.num(o.bv)} BV and ${P.inr(o.cashback, 2)} cashback reversed.`);
+  });
+
+  renderProducts(); renderCart(); renderOrders();
+})();
+</script>
+</body>
+</html>
