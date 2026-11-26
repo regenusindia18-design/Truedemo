@@ -22,8 +22,10 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 20
-      - name: Test plan engine
-        run: node tests/plan.test.js
+      - name: Run tests
+        run: |
+          node tests/plan.test.js
+          node tests/clinic.test.js
       - name: Assemble site
         run: |
           mkdir _site

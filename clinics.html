@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TrueShop Stores & Doctors</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css">
+<style>
+  .filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
+  .filters .input { width: auto; min-width: 170px; margin: 0; }
+  .days { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 18px; }
+  .days button { flex: 0 0 auto; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 12px; padding: 8px 12px; cursor: pointer; font: 600 .82rem var(--font); text-align: center; line-height: 1.3; }
+  .days button.active { background: var(--green-700); color: #fff; border-color: var(--green-700); }
+  .doc { display: grid; grid-template-columns: 64px 1fr; gap: 16px; }
+  .doc + .doc { margin-top: 16px; }
+  .doc-av { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; font: 700 1.3rem var(--display); color: #fff; background: var(--green-700); }
+  .doc h3 { margin: 0 0 2px; font-size: 1.1rem; }
+  .slots { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .slot { border: 1px solid var(--green-500); color: var(--green-700); background: var(--green-100); border-radius: 8px; padding: 6px 10px; font: 600 .82rem var(--font); cursor: pointer; }
+  .slot:hover { background: var(--green-700); color: #fff; }
+  .slot small { display: block; font-size: .65rem; font-weight: 500; opacity: .8; }
+  .clinic-slots { border-top: 1px dashed var(--line); padding-top: 10px; margin-top: 10px; }
+  .appt { display: grid; grid-template-columns: 1fr auto; gap: 10px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+  .appt:last-child { border-bottom: 0; }
+  .store-card h3 { margin: 0 0 4px; }
+  .seg { display: flex; gap: 8px; margin-bottom: 12px; }
+  .seg label { flex: 1; border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; cursor: pointer; font-size: .88rem; }
+  .seg input { margin-right: 6px; accent-color: var(--green-500); }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+  .rx { width: 100%; border-collapse: collapse; font-size: .88rem; }
+  .rx td, .rx th { text-align: left; padding: 6px 4px; border-bottom: 1px dashed var(--line); }
+</style>
+</head>
+<body>
+
+<div class="page-head"><div class="container">
+  <div class="eyebrow">TrueShop Stores & TrueCare Clinics</div>
+  <h1 style="font-size:clamp(1.8rem,4vw,2.6rem)">Visit a store. See a doctor.</h1>
+  <p>Find a TrueShop franchise store near you and book a consultation at the TrueCare clinic inside. Consultation fees never earn BV or commission, and doctors never earn from product sales.</p>
+</div></div>
+
+<section class="block" style="padding-top:28px">
+  <div class="container">
+    <div class="tabs" id="tabs">
+      <button data-t="book" class="active">🩺 Book a doctor</button>
+      <button data-t="stores">🏬 Find a store</button>
+      <button data-t="mine">📅 My appointments</button>
+    </div>
+    <div id="pane"></div>
+  </div>
+</section>
+
+<script src="assets/js/plan.js"></script>
+<script src="assets/js/app.js"></script>
+<script src="assets/js/clinic-data.js"></script>
+<script>
+(function () {
+  const C = ClinicDB, D = () => C.db, esc = TS.esc, inr = TrueShopPlan.inr;
+  const me = () => ({ id: TS.state.member.id, name: TS.state.member.name });
+  let tab = (location.hash.slice(1) || 'book');
+  const today = C.istDate(Date.now());
+  const days = Array.from({ length: 7 }, (_, i) => C.addDays(today, i));
+  const f = { city: '', spec: '', date: today };
+  let here = null;
+
+  const STATUS = {
+    pending_payment: ['chip chip-warn', 'Awaiting payment'], confirmed: ['chip', 'Confirmed'], checked_in: ['chip chip-blue', 'Checked in'],
+    completed: ['chip chip-grey', 'Completed'], cancelled_by_patient: ['chip chip-red', 'Cancelled by you'], cancelled_by_clinic: ['chip chip-red', 'Cancelled by clinic'],
+    no_show: ['chip chip-red', 'No-show'], expired: ['chip chip-grey', 'Hold expired'],
+  };
+  const chip = (s) => `<span class="${STATUS[s][0]}">${STATUS[s][1]}</span>`;
+  const initials = (n) => n.replace('Dr. ', '').split(' ').map((x) => x[0]).join('');
+
+  function setTab(t) { tab = t; history.replaceState(null, '', '#' + t); TS.$$('#tabs button').forEach((b) => b.classList.toggle('active', b.dataset.t === t)); render(); }
+  TS.$('#tabs').onclick = (e) => { const b = e.target.closest('button'); if (b) setTab(b.dataset.t); };
+  function render() { C.releaseExpired(D()); C.save(); ({ book: renderBook, stores: renderStores, mine: renderMine })[tab](); }
+
+  /* ------------------------------------------------ book a doctor */
+  function renderBook() {
+    const db = D();
+    const cities = [...new Set(db.clinics.map((c) => c.city))];
+    const specs = [...new Set(db.doctors.map((d) => d.specialization))];
+    const docs = db.doctors.filter((d) => d.verified && d.status === 'active' && (!f.spec || d.specialization === f.spec));
+    const cards = docs.map((d) => {
+      const clinics = [...new Set(db.schedules.filter((s) => s.doctorId === d.id).map((s) => s.clinicId))].map((id) => C.byId(db.clinics, id)).filter((c) => !f.city || c.city === f.city);
+      if (!clinics.length) return '';
+      const blocks = clinics.map((c) => {
+        const slots = C.availableSlots(db, d.id, c.id, f.date);
+        const leave = C.onLeave(db, d.id, f.date);
+        return `<div class="clinic-slots"><div class="small"><b>${esc(c.name)}</b> <span class="muted">· ${esc(c.city)}</span></div>
+          ${slots.length ? `<div class="slots">${slots.map((s) => `<button class="slot" data-doc="${d.id}" data-cl="${c.id}" data-st="${s.start}">${C.fmtTime(s.start)}${s.left > 1 ? `<small>${s.left} left</small>` : ''}</button>`).join('')}</div>`
+            : `<div class="tiny muted" style="margin-top:6px">${leave ? 'Doctor on leave this day.' : 'No slots on this day. Try another date.'}</div>`}</div>`;
+      }).join('');
+      const fees = [...new Set(db.schedules.filter((s) => s.doctorId === d.id).map((s) => s.fee ?? d.fee))];
+      return `<div class="card doc"><div class="doc-av">${esc(initials(d.name))}</div><div>
+        <h3>${esc(d.name)}</h3>
+        <div class="small muted">${esc(d.qualification)} · <b style="color:var(--ink)">${esc(d.specialization)}</b></div>
+        <div class="tiny muted" style="margin-top:4px">✅ Registration verified · ${esc(d.council)} · ${esc(d.regNo)}</div>
+        <div class="tiny muted">🗣 ${d.languages.map(esc).join(', ')}</div>
+        <p class="small" style="margin:6px 0 0">${esc(d.bio)}</p>
+        <div style="margin-top:6px"><span class="chip chip-gold">Fee ${fees.map((x) => inr(x)).join(' / ')}</span> <span class="chip chip-grey">0 BV</span></div>
+        ${blocks}</div></div>`;
+    }).join('');
+    TS.$('#pane').innerHTML = `
+      <div class="filters">
+        <select class="input" id="fCity"><option value="">All cities</option>${cities.map((c) => `<option ${c === f.city ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
+        <select class="input" id="fSpec"><option value="">All specialities</option>${specs.map((s) => `<option ${s === f.spec ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>
+        <span class="tiny muted">Times are in IST.</span>
+      </div>
+      <div class="days">${days.map((d, i) => `<button data-d="${d}" class="${d === f.date ? 'active' : ''}">${i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : C.fmtDay(d).split(',')[0]}<br><span class="tiny">${C.fmtDay(d).split(', ')[1] || C.fmtDay(d)}</span></button>`).join('')}</div>
+      ${cards || '<div class="card"><p class="muted" style="margin:0">No doctors match these filters.</p></div>'}`;
+    TS.$('#fCity').onchange = (e) => { f.city = e.target.value; renderBook(); };
+    TS.$('#fSpec').onchange = (e) => { f.spec = e.target.value; renderBook(); };
+    TS.$('.days').onclick = (e) => { const b = e.target.closest('[data-d]'); if (b) { f.date = b.dataset.d; renderBook(); } };
+    TS.$('#pane').onclick = (e) => { const s = e.target.closest('.slot'); if (s) bookModal(s.dataset.doc, s.dataset.cl, +s.dataset.st); };
+  }
+
+  function bookModal(doctorId, clinicId, start) {
+    const db = D(), d = C.byId(db.doctors, doctorId), c = C.byId(db.clinics, clinicId);
+    const slot = C.availableSlots(db, doctorId, clinicId, C.istDate(start)).find((s) => s.start === start);
+    TS.modal('Book consultation', `
+      <div class="row"><span>Doctor</span><b>${esc(d.name)}</b></div>
+      <div class="row"><span>Clinic</span><b class="small">${esc(c.name)}</b></div>
+      <div class="row"><span>When (IST)</span><b>${C.fmt(start)}</b></div>
+      <div class="row"><span>Consultation fee</span><b>${inr(slot.fee)}</b></div>
+      <div class="row"><span>BV / commission</span><b>0 · consultations never earn BV</b></div>
+      <div style="margin-top:14px" class="seg"><label><input type="radio" name="who" value="self" checked>For me (${esc(me().name)})</label><label><input type="radio" name="who" value="family">Family member</label></div>
+      <div id="fam" hidden>
+        <label class="field">Patient name<input id="pn" autocomplete="off"></label>
+        <div class="two"><label class="field">Age<input id="pa" type="number" min="0" max="120"></label>
+        <label class="field">Gender<select id="pg"><option value="F">Female</option><option value="M">Male</option><option value="O">Other</option></select></label></div>
+        <label class="field">Relation<select id="pr"><option>Spouse</option><option>Child</option><option>Parent</option><option>Sibling</option><option>Other</option></select></label>
+      </div>
+      <label class="small" style="display:flex;gap:8px;align-items:flex-start;margin:6px 0 12px"><input type="checkbox" id="consent" style="margin-top:3px;accent-color:var(--green-500)">
+        <span>I consent to TrueCare processing this patient's health information to provide the consultation, as described under the Digital Personal Data Protection Act, 2023. Only the treating doctor and I can see clinical notes.</span></label>
+      <div class="small" id="err" style="color:var(--danger);min-height:1.2em"></div>
+      <button class="btn btn-gold" id="go" style="width:100%">Hold slot & pay ${inr(slot.fee)}</button>
+      <p class="tiny muted" style="margin:8px 0 0">The slot is held for ${C.HOLD_MINUTES} minutes while you pay.</p>`, (b, close) => {
+      TS.$$('[name=who]', b).forEach((r) => (r.onchange = () => (TS.$('#fam', b).hidden = r.value === 'self' ? true : false)));
+      TS.$('#go', b).onclick = () => {
+        const family = TS.$('[name=who]:checked', b).value === 'family';
+        const patient = family ? { name: TS.$('#pn', b).value.trim(), age: +TS.$('#pa', b).value || null, gender: TS.$('#pg', b).value, relation: TS.$('#pr', b).value }
+          : { name: me().name, age: 34, gender: 'M', relation: 'Self' };
+        try {
+          const a = C.book(D(), { doctorId, clinicId, start, patient, bookedBy: me().id, consent: TS.$('#consent', b).checked });
+          C.save(); close(); render(); payModal(a.id);
+        } catch (err) { TS.$('#err', b).textContent = err.message; }
+      };
+    });
+  }
+
+  function payModal(id) {
+    const a = C.byId(D().appointments, id);
+    let timer;
+    const closeFn = TS.modal('Pay consultation fee', `
+      <p class="small muted">Demo payment: no money is taken.</p>
+      <div class="row"><span>Booking</span><b>${a.bookingNo}</b></div>
+      <div class="row"><span>Amount</span><b>${inr(a.fee)}</b></div>
+      <div class="row"><span>Slot held for</span><b id="cd">10:00</b></div>
+      <div class="row"><span>Pay via</span><select class="input" id="pm" style="max-width:170px;margin:0"><option>UPI</option><option>Card</option><option>NetBanking</option></select></div>
+      <div class="small" id="perr" style="color:var(--danger);min-height:1.2em"></div>
+      <button class="btn btn-gold" id="pay" style="width:100%;margin-top:6px">Pay ${inr(a.fee)}</button>`, (b, close) => {
+      const tick = () => {
+        const ms = a.holdUntil - Date.now();
+        const el = TS.$('#cd', b); if (!el) { clearInterval(timer); return; }
+        el.textContent = ms > 0 ? `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}` : 'expired';
+      };
+      tick(); timer = setInterval(tick, 1000);
+      TS.$('#pay', b).onclick = () => {
+        try {
+          C.pay(D(), id, TS.$('#pm', b).value); C.save(); clearInterval(timer); close();
+          TS.toast(`✅ Booking <b>${a.bookingNo}</b> confirmed. 📱 SMS, WhatsApp and email sent.`, 4500);
+          setTab('mine');
+        } catch (err) { C.save(); TS.$('#perr', b).textContent = err.message; render(); }
+      };
+    });
+    return closeFn;
+  }
+
+  /* ------------------------------------------------ stores */
+  function renderStores() {
+    const db = D();
+    const list = db.stores.filter((s) => s.status === 'active').map((s) => ({ s, km: here ? C.distanceKm(here, s) : null }));
+    if (here) list.sort((a, b) => a.km - b.km);
+    TS.$('#pane').innerHTML = `
+      <div class="filters"><button class="btn btn-green btn-sm" id="near">📍 Stores near me</button><span class="tiny muted" id="geo">${here ? 'Sorted by distance from you.' : ''}</span></div>
+      <div class="grid grid-2">${list.map(({ s, km }) => {
+        const c = db.clinics.find((x) => x.storeId === s.id && x.status === 'active');
+        return `<div class="card store-card">
+          <div style="display:flex;justify-content:space-between;gap:8px"><h3>🏬 ${esc(s.name)}</h3>${km != null ? `<span class="chip">${km.toFixed(1)} km</span>` : ''}</div>
+          <div class="small muted">${esc(s.address)}</div>
+          <div class="row small"><span>Hours</span><b>${esc(s.hours)}</b></div>
+          <div class="row small"><span>Phone</span><b>${esc(s.phone)}</b></div>
+          <div class="row small"><span>Member code at the counter</span><b>BV credited as online</b></div>
+          ${c ? `<div class="row small"><span>🩺 ${esc(c.name)}</span><button class="btn btn-gold btn-sm" data-city="${esc(c.city)}">Book a doctor</button></div>` : ''}
+          <a class="btn btn-ghost btn-sm" style="margin-top:8px" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${s.lat},${s.lng}">Directions ↗</a>
+        </div>`; }).join('')}</div>`;
+    TS.$('#near').onclick = () => {
+      if (!navigator.geolocation) { TS.$('#geo').textContent = 'Location is not available in this browser.'; return; }
+      TS.$('#geo').textContent = 'Finding you…';
+      navigator.geolocation.getCurrentPosition((p) => { here = { lat: p.coords.latitude, lng: p.coords.longitude }; renderStores(); },
+        () => { TS.$('#geo').textContent = 'Location permission denied. Showing all stores.'; }, { timeout: 8000 });
+    };
+    TS.$('#pane').onclick = (e) => { const b = e.target.closest('[data-city]'); if (b) { f.city = b.dataset.city; setTab('book'); } };
+  }
+
+  /* ------------------------------------------------ my appointments */
+  function renderMine() {
+    const db = D(), now = Date.now();
+    const mine = db.appointments.filter((a) => a.bookedBy === me().id).sort((a, b) => b.start - a.start);
+    TS.$('#pane').innerHTML = `<div class="card">${mine.length ? mine.map((a) => {
+      const d = C.byId(db.doctors, a.doctorId), c = C.byId(db.clinics, a.clinicId);
+      const acts = [];
+      if (a.status === 'pending_payment') acts.push(`<button class="btn btn-gold btn-sm" data-pay="${a.id}">Pay now</button>`);
+      if (a.status === 'confirmed' && a.start > now) acts.push(`<button class="btn btn-ghost btn-sm" data-rs="${a.id}">Reschedule</button>`);
+      if (['pending_payment', 'confirmed'].includes(a.status) && a.start > now) acts.push(`<button class="btn btn-ghost btn-sm" data-cx="${a.id}">Cancel</button>`);
+      if (a.notes) acts.push(`<button class="btn btn-green btn-sm" data-rx="${a.id}">Prescription</button>`);
+      return `<div class="appt"><div>
+        <b>${C.fmt(a.start)}</b> ${chip(a.status)}
+        <div class="small">${esc(d.name)} · ${esc(d.specialization)} · ${esc(c.name)}</div>
+        <div class="tiny muted">${a.bookingNo} · Patient: ${esc(a.patient.name)} (${esc(a.patient.relation)}) · Fee ${inr(a.fee)} · ${a.paymentStatus}${a.refund ? ` · refund ${a.refund.pct}% = ${inr(a.refund.amount)}` : ''} · 0 BV</div>
+      </div><div class="acts" style="display:flex;gap:6px;flex-wrap:wrap;align-items:start">${acts.join('')}</div></div>`;
+    }).join('') : '<p class="muted" style="margin:0">No appointments yet. Book one from the first tab.</p>'}</div>
+    <p class="tiny muted" style="margin-top:12px">Demo refund policy: cancel 24 h or more before the slot for a 100% refund, 2–24 h for 50%, and under 2 h for no refund. Rescheduling closes 2 hours before the slot. A clinic cancellation is always refunded in full.</p>`;
+    TS.$('#pane').onclick = (e) => {
+      const t = e.target.closest('button'); if (!t) return;
+      if (t.dataset.pay) payModal(t.dataset.pay);
+      if (t.dataset.cx) cancelModal(t.dataset.cx);
+      if (t.dataset.rs) rescheduleModal(t.dataset.rs);
+      if (t.dataset.rx) rxModal(t.dataset.rx);
+    };
+  }
+
+  function cancelModal(id) {
+    const a = C.byId(D().appointments, id), pct = C.refundPct(a);
+    TS.modal('Cancel appointment?', `
+      <div class="row"><span>When</span><b>${C.fmt(a.start)}</b></div>
+      <div class="row"><span>Refund</span><b>${a.paymentStatus === 'paid' ? `${pct}% = ${inr(a.fee * pct / 100)}` : 'Nothing was paid'}</b></div>
+      <label class="field" style="margin-top:10px">Reason (optional)<input id="why"></label>
+      <div class="small" id="cerr" style="color:var(--danger);min-height:1.2em"></div>
+      <button class="btn btn-gold" id="ok" style="width:100%">Cancel appointment</button>`, (b, close) => {
+      TS.$('#ok', b).onclick = () => {
+        try { C.cancel(D(), id, 'patient', TS.$('#why', b).value.trim()); C.save(); close(); render(); TS.toast('Appointment cancelled. 📱 Confirmation sent.'); }
+        catch (err) { TS.$('#cerr', b).textContent = err.message; }
+      };
+    });
+  }
+
+  function rescheduleModal(id) {
+    const a = C.byId(D().appointments, id);
+    let date = C.istDate(a.start);
+    TS.modal('Reschedule', '<div id="rsBody"></div>', (b, close) => {
+      const draw = () => {
+        const slots = C.availableSlots(D(), a.doctorId, a.clinicId, date, Date.now(), a.id).filter((s) => s.start !== a.start);
+        TS.$('#rsBody', b).innerHTML = `<p class="small muted">Currently ${C.fmt(a.start)}. Pick a new time with the same doctor and clinic.</p>
+          <div class="days">${days.map((d) => `<button data-d="${d}" class="${d === date ? 'active' : ''}">${C.fmtDay(d)}</button>`).join('')}</div>
+          <div class="slots">${slots.map((s) => `<button class="slot" data-st="${s.start}">${C.fmtTime(s.start)}</button>`).join('') || '<span class="small muted">No free slots on this day.</span>'}</div>
+          <div class="small" id="rerr" style="color:var(--danger);min-height:1.2em;margin-top:8px"></div>`;
+      };
+      draw();
+      b.onclick = (e) => {
+        const d = e.target.closest('[data-d]'); if (d) { date = d.dataset.d; draw(); return; }
+        const s = e.target.closest('[data-st]'); if (!s) return;
+        try { C.reschedule(D(), id, +s.dataset.st); C.save(); close(); render(); TS.toast('📅 Rescheduled. 📱 Confirmation sent.'); }
+        catch (err) { TS.$('#rerr', b).textContent = err.message; }
+      };
+    });
+  }
+
+  function rxModal(id) {
+    const a = C.byId(D().appointments, id), d = C.byId(D().doctors, a.doctorId);
+    TS.modal('Consultation summary', `
+      <p class="tiny muted">Visible only to you and ${esc(d.name)}. Every view is logged.</p>
+      <div class="row"><span>Doctor</span><b>${esc(d.name)} · ${esc(d.regNo)}</b></div>
+      <div class="row"><span>Date</span><b>${C.fmt(a.start)}</b></div>
+      <div class="row"><span>Complaint</span><span class="small">${esc(a.notes.complaint || '-')}</span></div>
+      <div class="row"><span>Findings</span><span class="small">${esc(a.notes.findings || '-')}</span></div>
+      <div class="row"><span>Advice</span><span class="small">${esc(a.notes.advice || '-')}</span></div>
+      <h4 style="margin:14px 0 4px">℞ Prescription</h4>
+      ${a.prescription && a.prescription.length ? `<table class="rx"><tr><th>Medicine</th><th>Dose</th><th>Days</th></tr>${a.prescription.map((r) => `<tr><td>${esc(r.drug)}</td><td>${esc(r.dose)}</td><td>${esc(r.days)}</td></tr>`).join('')}</table>` : '<p class="small muted">No medicines prescribed.</p>'}`);
+  }
+
+  render();
+  setInterval(() => { if (C.releaseExpired(D())) { C.save(); render(); } }, 30000);
+})();
+</script>
+</body>
+</html>

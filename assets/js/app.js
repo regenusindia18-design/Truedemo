@@ -88,7 +88,7 @@
 
   /* ------------------------------------------------------------ chrome */
   const NAV = [
-    ['index.html', 'Home'], ['plan.html', 'Business Plan'], ['shop.html', 'Shop'],
+    ['index.html', 'Home'], ['plan.html', 'Business Plan'], ['shop.html', 'Shop'], ['clinics.html', 'Stores & Doctors'],
     ['dashboard.html', 'My Dashboard'], ['simulator.html', 'Simulator'], ['compliance.html', 'Compliance'],
   ];
   function header() {

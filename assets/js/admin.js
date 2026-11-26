@@ -79,26 +79,50 @@
     ['audit', '🧾', 'Audit Log'],
   ];
   const VIEWS = {};
+
+  // Stores & clinics modules (admin-clinics.js) and role-based menu.
+  // Each menu item needs a permission; the acting staff user comes from ClinicDB.
+  const EXT = window.AdminModules, CDB = window.ClinicDB;
+  if (EXT) NAV.splice(NAV.findIndex((n) => n[0] === 'Finance' && n.length === 1), 0, ...EXT.nav);
+  const NAV_PERM = { payout: 'finance.approve', withdrawals: 'finance.approve', audit: 'audit.view' };
+  const allowed = (item) => !CDB || CDB.can(CDB.actor(), item[4] || NAV_PERM[item[0]] || 'mlm.manage');
+  const visibleNav = () => { // allowed items, plus each group heading that still has an item under it
+    const out = []; let grp = null;
+    NAV.forEach((n) => {
+      if (!n[1]) { grp = n; return; }
+      if (!allowed(n)) return;
+      if (grp) { out.push(grp); grp = null; }
+      out.push(n);
+    });
+    return out;
+  };
+
   function renderNav(active) {
-    $('#sideNav').innerHTML = NAV.map(([k, ic, label, count]) => {
+    $('#sideNav').innerHTML = visibleNav().map(([k, ic, label, count]) => {
       if (!ic) return `<div class="grp">${k}</div>`;
       const c = count ? count() : 0;
       return `<a href="#${k}" class="${k === active ? 'active' : ''}"><span class="ic">${ic}</span>${label}${c ? `<span class="cnt">${c}</span>` : ''}</a>`;
     }).join('');
+    const mlm = !CDB || CDB.can(CDB.actor(), 'mlm.manage');
+    $('.search').style.visibility = mlm ? '' : 'hidden';
+    $('#notifBtn').hidden = !mlm;
     const pend = db().members.filter((m) => m.kyc === 'pending').length + db().withdrawals.filter((w) => w.status === 'pending').length + db().tickets.filter((t) => t.status === 'open').length;
     $('#notifCount').textContent = pend || '';
   }
   function route() {
-    const key = (location.hash.slice(1) || 'dashboard').split('?')[0];
-    const view = VIEWS[key] || VIEWS.dashboard;
+    let key = (location.hash.slice(1) || 'dashboard').split('?')[0];
+    const items = visibleNav().filter((n) => n[1]);
+    if (!VIEWS[key] || !items.some((n) => n[0] === key)) key = items.length ? items[0][0] : 'dashboard';
+    const view = VIEWS[key];
     computeNetwork();
-    renderNav(VIEWS[key] ? key : 'dashboard');
+    renderNav(key);
     const item = NAV.find((n) => n[0] === key) || NAV[1];
     $('#crumbs').textContent = item[2];
     const fresh = document.createElement('main'); // fresh element so view handlers never leak between routes
     fresh.className = 'content'; fresh.id = 'view';
     $('#view').replaceWith(fresh);
     view(fresh);
+    if (EXT) EXT.decorate(fresh);
     $('#side').classList.remove('open'); $('#scrim').classList.remove('open');
     window.scrollTo(0, 0);
   }
@@ -376,7 +400,7 @@
       <div class="tabs">${['Pending_Escrow', 'Confirmed', 'Returned', 'all'].map((k) => `<button data-k="${k}" class="${k === ordTab ? 'active' : ''}">${k.replace('_', ' ')} (${k === 'all' ? d.orders.length : d.orders.filter((o) => o.status === k).length})</button>`).join('')}</div>
       <div class="table-wrap"><table class="dt"><thead><tr><th>Order</th><th>Member</th><th>Items</th><th>Payment</th><th class="r">Paid</th><th class="r">TruePoints</th><th class="r">BV</th><th>Status</th><th></th></tr></thead><tbody>
       ${list.map((o) => { const m = d.members[o.mi]; const left = Math.max(0, P.ESCROW_DAYS - (Date.now() - o.t) / DAY); return `<tr>
-        <td><b>${o.id}</b><div class="tiny muted">${fmtDT(o.t)}</div></td>
+        <td><b>${o.id}</b>${o.channel === 'offline_store' ? ' <span class="chip chip-blue">store</span>' : ''}<div class="tiny muted">${fmtDT(o.t)}</div></td>
         <td class="small"><a href="#" data-prof="${m.id}">${m.id}</a><div class="tiny muted">${esc(m.name)}</div></td>
         <td class="small">${o.items.map((it) => { const p = prods.find((x) => x.id === it.pid); return `${p.emoji} ${esc(p.name.split(' ').slice(0, 3).join(' '))} ×${it.qty}`; }).join('<br>')}</td>
         <td class="small">${o.pay}</td><td class="r num">${P.inr(o.paid)}</td><td class="r num">${o.pointsUsed || 0}</td><td class="r num">${P.num(o.bv)}</td>
@@ -669,6 +693,8 @@
   });
   document.addEventListener('click', (e) => { if (!e.target.closest('.search')) $('#gres').hidden = true; });
 
+  if (EXT) Object.entries(EXT.views).forEach(([k, f]) => (VIEWS[k] = (el) => f(el, { head, kpi, rerender, fmtDT, downloadCSV })));
+
   /* ======================================================= auth & boot */
   const AUTH = 'trueshop-admin-session';
   function boot() {
@@ -681,10 +707,11 @@
     e.preventDefault();
     if ($('#lu').value.trim() === 'admin' && $('#lp').value === 'trueshop@2026') {
       try { sessionStorage.setItem(AUTH, '1'); } catch (err) {}
+      if (CDB) CDB.setActor(null);
       A.log('Admin signed in'); boot();
     } else { $('#capsWarn').textContent = '✗ Invalid admin ID or password'; }
   };
-  $('#logout').onclick = () => { try { sessionStorage.removeItem(AUTH); } catch (e) {} boot(); };
+  $('#logout').onclick = () => { try { sessionStorage.removeItem(AUTH); } catch (e) {} if (CDB) CDB.setActor(null); boot(); };
   $('#burger').onclick = () => { $('#side').classList.toggle('open'); $('#scrim').classList.toggle('open'); };
   $('#scrim').onclick = () => { $('#side').classList.remove('open'); $('#scrim').classList.remove('open'); };
   $('#notifBtn').onclick = () => { location.hash = db().members.some((m) => m.kyc === 'pending') ? 'kyc' : 'withdrawals'; };
