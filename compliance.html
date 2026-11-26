@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TrueShop Compliance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css">
+<style>
+  .timeline { position: relative; padding-left: 30px; }
+  .timeline::before { content: ''; position: absolute; left: 10px; top: 4px; bottom: 4px; width: 2px; background: var(--line); }
+  .timeline .t { position: relative; margin-bottom: 22px; }
+  .timeline .t::before { content: ''; position: absolute; left: -26px; top: 4px; width: 14px; height: 14px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 4px var(--green-100); }
+  .formula { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--surface-2); padding: 14px 16px; border-radius: 10px; font-size: .88rem; overflow-x: auto; }
+</style>
+</head>
+<body>
+
+<div class="page-head"><div class="container">
+  <div class="eyebrow">Consumer Protection (Direct Selling) Rules, 2021</div>
+  <h1 style="font-size:clamp(1.8rem,4vw,2.6rem)">Compliance &amp; member protection</h1>
+  <p>TrueShop is operated by Regenus India Private Limited (incorporated 2018, Maharashtra). Every rupee of member income is linked to a genuine product sale.</p>
+</div></div>
+
+<section class="block" style="padding-top:32px">
+  <div class="container">
+    <div class="grid grid-3">
+      <div class="card card-hover reveal"><div class="icon-pill">🆓</div><h3>Free registration</h3><p class="muted small">Zero joining fee and no mandatory starter kit. Anyone can register as a customer at no cost.</p></div>
+      <div class="card card-hover reveal"><div class="icon-pill">🪪</div><h3>KYC before payout</h3><p class="muted small">PAN, Aadhaar and bank-account verification are required before any commission is released.</p></div>
+      <div class="card card-hover reveal"><div class="icon-pill">📦</div><h3>100% product-linked BV</h3><p class="muted small">BV is generated only on product orders. No income is paid for recruitment alone.</p></div>
+      <div class="card card-hover reveal"><div class="icon-pill">⏳</div><h3>7-day return escrow</h3><p class="muted small">Order BV stays in <code>Pending_Escrow</code> for 7 days after delivery. Returns automatically reverse BV and commissions.</p></div>
+      <div class="card card-hover reveal"><div class="icon-pill">↩️</div><h3>30-day buyback</h3><p class="muted small">Unopened, marketable products returned within 30 days of invoice are refunded, less applicable taxes and clawback of paid BV commissions.</p></div>
+      <div class="card card-hover reveal"><div class="icon-pill">🧢</div><h3>70% hard cap</h3><p class="muted small">Total payout across all streams can never exceed 70% of total BV in any cycle. The engine enforces this automatically.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="block" style="padding-top:0">
+  <div class="container grid grid-2">
+    <div class="card reveal">
+      <h3>Anti-leakage payout engine</h3>
+      <div class="formula">5% Cashback<br>+ 10% Direct Referral<br>+ 20% Effective Binary (40% on weaker leg)<br>+ 20% 6-Level Generation<br>+ 5% Effective Leadership Match<br>+ 10% CTO Pools<br>= <b>70% maximum of total BV</b></div>
+      <p class="small muted" style="margin-top:12px">TruePoints logic: 5,000 steps = 10 TruePoints; 1 TruePoint = ₹1 discount, capped at 10% of the bill. BV is calculated strictly on net INR paid via UPI/Card/NetBanking after the TruePoints deduction.</p>
+    </div>
+    <div class="card reveal">
+      <h3>Order → payout lifecycle</h3>
+      <div class="timeline">
+        <div class="t"><b>Order paid</b><div class="small muted">BV computed on net amount after TruePoints; 5% cashback credited.</div></div>
+        <div class="t"><b>Pending_Escrow (7 days)</b><div class="small muted">Return or cancel → BV &amp; linked commissions reversed.</div></div>
+        <div class="t"><b>Weekly / monthly closing</b><div class="small muted">Binary matched 1:1 with package capping; generation and pools calculated; 70% cap checked.</div></div>
+        <div class="t"><b>Wallet split</b><div class="small muted">90% payout wallet · 10% auto-repurchase wallet.</div></div>
+        <div class="t" style="margin:0"><b>Bank transfer</b><div class="small muted">NEFT/IMPS to the KYC-verified account after 5% TDS + 5% admin.</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="block" style="padding-top:0">
+  <div class="container">
+    <div class="table-wrap reveal"><table>
+      <thead><tr><th>Wallet</th><th>Source of funds</th><th>Usage &amp; withdrawal rules</th><th>BV rule</th></tr></thead>
+      <tbody>
+        <tr><td><b>Main Payout Wallet</b></td><td>90% of Direct, Binary, Generation &amp; CTO bonuses</td><td>NEFT/IMPS bank transfer (5% TDS + 5% admin deduction)</td><td>N/A (cash payout)</td></tr>
+        <tr><td><b>Auto-Repurchase Wallet</b></td><td>10% auto-split from weekly/monthly commissions</td><td>100% usable for monthly product repurchase on TrueShop</td><td><b>Generates full BV</b></td></tr>
+        <tr><td><b>Cashback &amp; TruePoints Wallet</b></td><td>5% self-purchase cashback + TrueSteps daily activity</td><td>Max 10% of cart value per order; 45-day rolling expiry; non-cashable</td><td><b>0 BV on redeemed amount</b></td></tr>
+      </tbody></table></div>
+
+    <div class="disclaimer reveal" style="margin-top:22px">
+      <b>Earnings disclosure.</b> Brochure figures such as "40% Binary Matching" and "95% headline structure" describe rates on specific bases (e.g. the weaker leg, or a direct's earned income). Measured against <b>total company BV</b>, the effective maximum payout is <b>70%</b>, and 30% is retained by Regenus India Pvt. Ltd. Individual income depends entirely on genuine retail and repurchase sales and is not guaranteed.
+    </div>
+
+    <div class="card reveal" style="margin-top:22px">
+      <h3>Grievance &amp; nodal officer</h3>
+      <p class="muted small" style="margin:0">Regenus India Private Limited · Maharashtra, India. Grievances are acknowledged within 48 hours and resolved within 30 days, as required by the Direct Selling Rules. <i>(Contact details to be added before launch.)</i></p>
+    </div>
+  </div>
+</section>
+
+<script src="assets/js/plan.js"></script>
+<script src="assets/js/app.js"></script>
+</body>
+</html>
