@@ -25,6 +25,7 @@
         <b>${TS.esc(n.me ? 'You' : n.name)}</b><div class="tiny muted">${i === 0 ? 'Root' : i % 2 ? 'Left' : 'Right'}</div></span>${kids}</li>`;
     }
     $('#tree').innerHTML = node(0, 0);
+    const wrap = $('.tree-wrap'); wrap.scrollLeft = (wrap.scrollWidth - wrap.clientWidth) / 2;
   }
   $('#tree').addEventListener('click', (e) => {
     const el = e.target.closest('.node'); if (!el) return;

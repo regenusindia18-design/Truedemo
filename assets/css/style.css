@@ -65,7 +65,7 @@ p { margin: 0 0 1em; }
 .small { font-size: .85rem; }
 .tiny { font-size: .75rem; }
 .num { font-variant-numeric: tabular-nums; }
-.hidden { display: none !important; }
+.hidden, [hidden] { display: none !important; }
 
 /* ------------------------------------------------------------- header */
 .topbar {
@@ -238,3 +238,23 @@ footer.site .legal { border-top: 1px solid rgba(255,255,255,.1); margin-top: 28p
 .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 18px; }
 .tabs button { border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); padding: 8px 16px; border-radius: 999px; cursor: pointer; font: 600 .88rem var(--font); }
 .tabs button.active { background: var(--green-700); color: #fff; border-color: var(--green-700); }
+
+/* ------------------------------------------------------------- genealogy tree (shared) */
+  .tree-wrap { overflow-x: auto; padding: 10px 0 4px; }
+  .tree { width: max-content; min-width: 100%; }
+.tree, .tree ul { padding-top: 22px; position: relative; display: flex; justify-content: center; margin: 0; padding-left: 0; }
+  .tree li { list-style: none; text-align: center; position: relative; padding: 22px 6px 0; flex: 1; }
+  .tree li::before, .tree li::after { content: ''; position: absolute; top: 0; right: 50%; border-top: 2px solid var(--line); width: 50%; height: 22px; }
+  .tree li::after { right: auto; left: 50%; border-left: 2px solid var(--line); }
+  .tree li:only-child::before, .tree li:only-child::after { display: none; }
+  .tree li:only-child { padding-top: 0; }
+  .tree li:first-child::before, .tree li:last-child::after { border: 0 none; }
+  .tree li:last-child::before { border-right: 2px solid var(--line); border-radius: 0 6px 0 0; }
+  .tree li:first-child::after { border-radius: 6px 0 0 0; }
+  .tree ul ul::before, .tree > li > ul::before { content: ''; position: absolute; top: 0; left: 50%; border-left: 2px solid var(--line); height: 22px; }
+  .node { display: inline-block; min-width: 92px; padding: 8px 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; transition: transform .2s, box-shadow .2s; font-size: .78rem; }
+  .node:hover { transform: translateY(-3px); box-shadow: var(--shadow); }
+  .node .av { width: 30px; height: 30px; border-radius: 50%; margin: 0 auto 4px; display: grid; place-items: center; color: #fff; font-weight: 700; }
+  .node.me { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(245,200,66,.3); }
+  .node.empty { border-style: dashed; color: var(--ink-3); background: transparent; }
+  .node.inactive .av { background: #94a3b8 !important; }

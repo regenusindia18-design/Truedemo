@@ -109,7 +109,7 @@
         <div><b style="color:#fff">Member promise</b><br>Free registration · Zero joining fee<br>KYC before payout<br>7-day return escrow<br>30-day buyback</div>
       </div>
       <div class="legal">Demo prototype — all figures, members and transactions are simulated for illustration. Earnings depend entirely on genuine product sales; no income is guaranteed. Total payout is capped at 70% of BV in line with the Consumer Protection (Direct Selling) Rules, 2021.
-      <a href="#" id="resetDemo" style="float:right">Reset demo data</a></div>
+      <span style="float:right"><a href="admin.html">Admin panel (demo)</a> · <a href="#" id="resetDemo">Reset demo data</a></span></div>
     </div></footer>`;
   }
   function updateCartBadge() {
@@ -118,6 +118,7 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
+    if (document.body.classList.contains('admin')) return; // admin panel has its own chrome
     document.body.insertAdjacentHTML('afterbegin', header());
     document.body.insertAdjacentHTML('beforeend', footer());
     $('.menu-btn').onclick = () => $('.nav').classList.toggle('open');

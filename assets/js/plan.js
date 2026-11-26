@@ -41,11 +41,11 @@
   const HARD_CAP = 0.70;          // 70% of total BV — absolute ceiling
   const HEADLINE_TOTAL = 0.95;    // brochure figure (see compliance note)
 
-  const BINARY_RATE = 0.40;       // on matched weaker-leg BV
-  const GENERATION_LEVELS = [0.07, 0.04, 0.03, 0.02, 0.02, 0.02];
-  const DIRECT_RATE = 0.10;
-  const CASHBACK_RATE = 0.05;
-  const LEADERSHIP_RATE = 0.10;
+  let BINARY_RATE = 0.40;       // on matched weaker-leg BV
+  let GENERATION_LEVELS = [0.07, 0.04, 0.03, 0.02, 0.02, 0.02];
+  let DIRECT_RATE = 0.10;
+  let CASHBACK_RATE = 0.05;
+  let LEADERSHIP_RATE = 0.10;
   const CTO_POOLS = [
     { key: 'bronze', name: 'Bronze Club Pool',     share: 0.04 },
     { key: 'travel', name: 'Travel & Car Pool',    share: 0.03 },
@@ -76,6 +76,48 @@
     { key: 'diamond', name: 'Diamond Leader',   match: 1000000, pool: '3% Crown Royalty Pool (1× share)', poolKey: 'crown',  shares: 1, reward: '₹2,50,000 Car Downpayment Fund', color: '#38bdf8' },
     { key: 'crown',   name: 'Crown Ambassador', match: 5000000, pool: '3% Crown Royalty Pool (3× shares)', poolKey: 'crown', shares: 3, reward: '₹15,00,000 Luxury Car / Villa Fund', color: '#a855f7' },
   ];
+
+  /* ------------------------------------------------- admin plan overrides
+   * Plan Settings in the admin panel saves overrides to localStorage under
+   * OVERRIDE_KEY. They are validated against the 70% hard cap before being
+   * saved, and applied here at load so every page uses the same rules.
+   */
+  const OVERRIDE_KEY = 'trueshop-plan-overrides';
+  const DEFAULTS = JSON.parse(JSON.stringify({
+    bvRatios: Object.fromEntries(Object.entries(CATEGORIES).map(([k, c]) => [k, c.bvRatio])),
+    weeklyCaps: Object.fromEntries(PACKAGES.map((p) => [p.key, p.weeklyCap])),
+    binaryRate: BINARY_RATE, directRate: DIRECT_RATE, cashbackRate: CASHBACK_RATE, generation: GENERATION_LEVELS,
+  }));
+
+  /** Effective share of total BV implied by a settings object (must be <= HARD_CAP). */
+  function effectiveOutflow(cfg) {
+    const leadership = INCOME_STREAMS.find((x) => x.key === 'leadership').actual;
+    const cto = INCOME_STREAMS.find((x) => x.key === 'cto').actual;
+    return cfg.cashbackRate + cfg.directRate + cfg.binaryRate / 2 + cfg.generation.reduce((a, b) => a + b, 0) + leadership + cto;
+  }
+
+  function applyOverrides(cfg) {
+    Object.entries(cfg.bvRatios || {}).forEach(([k, v]) => CATEGORIES[k] && (CATEGORIES[k].bvRatio = v));
+    Object.entries(cfg.weeklyCaps || {}).forEach(([k, v]) => { const p = PACKAGES.find((x) => x.key === k); if (p) p.weeklyCap = v; });
+    if (cfg.binaryRate != null) BINARY_RATE = cfg.binaryRate;
+    if (cfg.directRate != null) DIRECT_RATE = cfg.directRate;
+    if (cfg.cashbackRate != null) CASHBACK_RATE = cfg.cashbackRate;
+    if (Array.isArray(cfg.generation) && cfg.generation.length === 6) GENERATION_LEVELS = cfg.generation.slice();
+    const set = (key, v) => (INCOME_STREAMS.find((x) => x.key === key).actual = v);
+    set('cashback', CASHBACK_RATE); set('direct', DIRECT_RATE); set('binary', BINARY_RATE / 2);
+    set('generation', GENERATION_LEVELS.reduce((a, b) => a + b, 0));
+  }
+  function currentSettings() {
+    return JSON.parse(JSON.stringify({
+      bvRatios: Object.fromEntries(Object.entries(CATEGORIES).map(([k, c]) => [k, c.bvRatio])),
+      weeklyCaps: Object.fromEntries(PACKAGES.map((p) => [p.key, p.weeklyCap])),
+      binaryRate: BINARY_RATE, directRate: DIRECT_RATE, cashbackRate: CASHBACK_RATE, generation: GENERATION_LEVELS,
+    }));
+  }
+  try {
+    const saved = typeof localStorage !== 'undefined' && JSON.parse(localStorage.getItem(OVERRIDE_KEY));
+    if (saved && effectiveOutflow({ ...DEFAULTS, ...saved }) <= HARD_CAP + 1e-9) applyOverrides(saved);
+  } catch (e) { /* storage unavailable: use defaults */ }
 
   /* ---------------------------------------------------------------- utils */
   const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
@@ -212,8 +254,10 @@
   }
 
   global.TrueShopPlan = {
-    COMPANY, CATEGORIES, INCOME_STREAMS, STREAM_COLORS, RETAINED_COLOR, HARD_CAP, HEADLINE_TOTAL, BINARY_RATE, GENERATION_LEVELS,
-    DIRECT_RATE, CASHBACK_RATE, LEADERSHIP_RATE, CTO_POOLS, PACKAGES, WALLET_SPLIT, DEDUCTIONS, STEPS,
+    get BINARY_RATE() { return BINARY_RATE; }, get GENERATION_LEVELS() { return GENERATION_LEVELS; },
+    get DIRECT_RATE() { return DIRECT_RATE; }, get CASHBACK_RATE() { return CASHBACK_RATE; },
+    OVERRIDE_KEY, DEFAULTS, effectiveOutflow, applyOverrides, currentSettings,
+    COMPANY, CATEGORIES, INCOME_STREAMS, STREAM_COLORS, RETAINED_COLOR, HARD_CAP, HEADLINE_TOTAL, LEADERSHIP_RATE, CTO_POOLS, PACKAGES, WALLET_SPLIT, DEDUCTIONS, STEPS,
     ESCROW_DAYS, BUYBACK_DAYS, RANKS,
     round2, inr, num, pct,
     productBV, priceCart, binaryClosing, generationIncome, leadershipMatch, rankFor, splitCommission,

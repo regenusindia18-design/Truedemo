@@ -55,4 +55,18 @@ t('rank by weaker leg', () => {
   assert.strictEqual(P.rankFor(62400, 54100).current.name, 'Silver Achiever');
   assert.strictEqual(P.rankFor(9999, 1e6).current, null);
 });
+t('admin settings: defaults sit exactly at the 70% cap', () => {
+  assert.ok(Math.abs(P.effectiveOutflow(P.DEFAULTS) - 0.70) < 1e-9);
+});
+t('admin settings: raising binary to 60% breaches the cap', () => {
+  assert.ok(P.effectiveOutflow({ ...P.DEFAULTS, binaryRate: 0.6 }) > P.HARD_CAP);
+});
+t('admin overrides apply to live engine and restore cleanly', () => {
+  P.applyOverrides({ weeklyCaps: { starter: 20000 }, binaryRate: 0.3 });
+  assert.strictEqual(P.binaryClosing({ leftBV: 1e6, rightBV: 1e6 }).paid, 20000);
+  assert.strictEqual(P.binaryClosing({ leftBV: 1000, rightBV: 1000 }).gross, 300);
+  P.applyOverrides(P.DEFAULTS);
+  assert.strictEqual(P.binaryClosing({ leftBV: 1000, rightBV: 1000 }).gross, 400);
+  assert.strictEqual(P.binaryClosing({ leftBV: 1e6, rightBV: 1e6 }).paid, 15000);
+});
 console.log(`\n${n} checks passed`);

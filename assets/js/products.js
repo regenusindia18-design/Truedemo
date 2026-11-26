@@ -16,3 +16,9 @@ window.TS_PRODUCTS = [
   { id: 'l3', name: 'Yoga Mat 6mm Anti-slip', category: 'lifestyle', mrp: 1199, dp: 960, emoji: '🧘' },
   { id: 'l4', name: 'Stainless Steel Bottle 1L', category: 'lifestyle', mrp: 699, dp: 560, emoji: '🍶' },
 ];
+
+// Admin price edits (Products & BV screen) override the catalogue defaults.
+try {
+  const ov = JSON.parse(localStorage.getItem('trueshop-product-overrides') || '{}');
+  window.TS_PRODUCTS.forEach((p) => { if (ov[p.id]) Object.assign(p, ov[p.id]); });
+} catch (e) { /* storage unavailable */ }
