@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TrueShop Business Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css">
+<style>
+  .stream { display: grid; grid-template-columns: 54px 1fr auto; gap: 16px; align-items: center; }
+  .stream .n { width: 54px; height: 54px; border-radius: 14px; display: grid; place-items: center; font-family: var(--display); font-weight: 800; font-size: 1.3rem; color: #fff; }
+  .stream .pcts { text-align: right; }
+  .stream .pcts .a { font-family: var(--display); font-size: 1.5rem; font-weight: 800; }
+  .gen-ladder { display: flex; align-items: flex-end; gap: 10px; height: 180px; padding-top: 10px; }
+  .gen-ladder div { flex: 1; border-radius: 10px 10px 4px 4px; background: linear-gradient(180deg, var(--gold), var(--green-500)); position: relative; display: flex; align-items: flex-start; justify-content: center; color: var(--green-900); font-weight: 800; padding-top: 6px; transform-origin: bottom; animation: grow .9s cubic-bezier(.2,.8,.2,1) both; }
+  .gen-ladder div span { position: absolute; bottom: -24px; color: var(--ink-2); font-weight: 600; font-size: .8rem; }
+  @keyframes grow { from { transform: scaleY(0) } }
+  .pair-demo { display: grid; grid-template-columns: 1fr auto 1fr; gap: 14px; align-items: center; text-align: center; }
+  .leg { padding: 18px; border-radius: 14px; background: var(--surface-2); }
+  .leg b { display: block; font-family: var(--display); font-size: 1.6rem; }
+  .wallet-card { border-radius: 18px; padding: 22px; color: #fff; position: relative; overflow: hidden; }
+  .wallet-card::after { content: ''; position: absolute; width: 160px; height: 160px; border-radius: 50%; right: -40px; top: -60px; background: rgba(255,255,255,.1); }
+  .wallet-card h3 { color: #fff; }
+  .wallet-card p { color: rgba(255,255,255,.85); font-size: .88rem; margin: 0; }
+</style>
+</head>
+<body>
+
+<div class="page-head"><div class="container">
+  <div class="eyebrow">Compensation Plan</div>
+  <h1 style="font-size:clamp(1.8rem,4vw,2.8rem)">The TrueShop Hybrid Plan</h1>
+  <p>E-commerce plus a product-backed binary and generation plan. Every rupee of income traces back to a real product order, and total payout never exceeds 70% of Business Volume.</p>
+</div></div>
+
+<section class="block">
+  <div class="container">
+    <div class="section-head reveal"><div class="kicker">Step 1</div><h2>Category-wise Business Volume</h2><p class="muted">BV is a percentage of the Distributor Price (DP). Higher-margin wellness products generate more BV.</p></div>
+    <div class="grid grid-3" id="cats"></div>
+  </div>
+</section>
+
+<section class="block" style="padding-top:0">
+  <div class="container">
+    <div class="section-head reveal"><div class="kicker">Step 2</div><h2>Six income streams</h2><p class="muted">The brochure ("headline") rate and the effective share of <b>total</b> BV are shown side by side, so members see exactly what the company pays out.</p></div>
+    <div class="grid" id="streams" style="gap:14px"></div>
+    <div class="card reveal" style="margin-top:20px">
+      <div class="row" style="padding-top:0"><b>Total BV distribution</b><span class="small muted">share of total company BV</span></div>
+      <div class="stack" id="stack"></div>
+      <div class="legend" id="legend"></div>
+    </div>
+  </div>
+</section>
+
+<section class="block" style="padding-top:0">
+  <div class="container grid grid-2">
+    <div class="card reveal">
+      <h3>⚡ Flash Binary Matching: how a pair pays</h3>
+      <p class="muted small">Your team grows on two legs. Each week, BV from both legs is matched 1:1. You earn 40% on the matched (weaker-leg) BV. The surplus on the power leg carries forward to next week.</p>
+      <div class="pair-demo" style="margin:18px 0">
+        <div class="leg">Left<b>1,000</b>BV</div><div style="font-size:1.6rem">⇄</div><div class="leg">Right<b>1,000</b>BV</div>
+      </div>
+      <div class="row"><span>Matched BV</span><b>1,000 BV</b></div>
+      <div class="row"><span>Binary income @ 40%</span><b style="color:var(--green-500)">₹400</b></div>
+      <div class="row"><span>Effective share of total paired BV</span><b>20%</b></div>
+      <h4 style="margin-top:18px">Activation slabs &amp; weekly capping</h4>
+      <div class="table-wrap"><table><thead><tr><th>ID</th><th class="r">Activation BV</th><th class="r">Weekly cap</th></tr></thead><tbody id="pkgs"></tbody></table></div>
+    </div>
+    <div class="card reveal">
+      <h3>🔁 Repurchase Generation: 6 levels, 20%</h3>
+      <p class="muted small">Every month, your downline's repurchase BV pays you across six generations.</p>
+      <div class="gen-ladder" id="ladder"></div>
+      <div style="height:30px"></div>
+      <h3 style="margin-top:12px">🤝 Leadership Check Match</h3>
+      <p class="muted small">Earn 10% of the Binary and Generation income earned by your <b>direct</b> referrals. It rewards you for mentoring them to success (about 5% of total BV in effect).</p>
+      <div class="row"><span>Direct earns ₹10,000 binary + generation</span><b style="color:var(--green-500)">You earn ₹1,000</b></div>
+    </div>
+  </div>
+</section>
+
+<section class="block" style="padding-top:0">
+  <div class="container">
+    <div class="section-head reveal"><div class="kicker">Step 3</div><h2>Ranks, CTO pools &amp; lifestyle rewards</h2><p class="muted">10% of company turnover BV is set aside in three leadership pools and shared each month among qualified ranks.</p></div>
+    <div class="table-wrap reveal"><table><thead><tr><th>Rank</th><th>Matching BV target</th><th>CTO pool share</th><th>Lifestyle milestone reward</th></tr></thead><tbody id="ranks"></tbody></table></div>
+  </div>
+</section>
+
+<section class="block" style="padding-top:0">
+  <div class="container">
+    <div class="section-head reveal"><div class="kicker">Step 4</div><h2>Triple-wallet architecture</h2></div>
+    <div class="grid grid-3">
+      <div class="wallet-card reveal" style="background:linear-gradient(135deg,#1b4332,#40916c)"><div class="small" style="opacity:.8">90% of commissions</div><h3>Main Payout Wallet</h3><p>Direct NEFT/IMPS to your KYC-verified bank account, after 5% TDS and 5% admin charge.</p></div>
+      <div class="wallet-card reveal" style="background:linear-gradient(135deg,#7a5600,#d4a514)"><div class="small" style="opacity:.8">10% auto-split</div><h3>Auto-Repurchase Wallet</h3><p>100% usable for monthly product repurchase on TrueShop. Generates full BV.</p></div>
+      <div class="wallet-card reveal" style="background:linear-gradient(135deg,#075985,#38bdf8)"><div class="small" style="opacity:.8">5% cashback + TrueSteps</div><h3>Cashback &amp; TruePoints</h3><p>Max 10% of cart value per order. 45-day rolling expiry. Non-cashable. 0 BV on the redeemed amount.</p></div>
+    </div>
+    <div class="card reveal" style="margin-top:20px">
+      <h3>Worked example: ₹10,000 gross commission</h3>
+      <div class="grid grid-4" id="split"></div>
+    </div>
+  </div>
+</section>
+
+<script src="assets/js/plan.js"></script>
+<script src="assets/js/app.js"></script>
+<script>
+(function () {
+  const P = TrueShopPlan;
+  const COLORS = ['#38bdf8', '#40916c', '#f5c842', '#2d6a4f', '#a855f7', '#f97316'];
+
+  cats.innerHTML = Object.entries(P.CATEGORIES).map(([k, c]) => `
+    <div class="card card-hover reveal">
+      <div class="icon-pill">${c.icon}</div>
+      <h3>${c.label}</h3>
+      <div style="display:flex;align-items:baseline;gap:10px"><span style="font:800 2.2rem var(--display);color:var(--green-700)">${P.pct(c.bvRatio)}</span><span class="muted">BV on DP</span></div>
+      <div class="bar" style="margin:10px 0 14px"><i data-w="${c.bvRatio * 100}%"></i></div>
+      <div class="row"><span class="small">₹1,000 DP order</span><b>${P.num(1000 * c.bvRatio)} BV</b></div>
+      <div class="row"><span class="small">Customer benefit</span><b>up to ${P.pct(c.maxDiscount)} off MRP</b></div>
+    </div>`).join('');
+
+  streams.innerHTML = P.INCOME_STREAMS.map((s, i) => `
+    <div class="card card-hover reveal stream">
+      <div class="n" style="background:${COLORS[i]}">${i + 1}</div>
+      <div><h3 style="margin:0">${s.name} <span class="chip chip-grey">${s.phase}</span></h3><div class="small muted">${s.rule}</div></div>
+      <div class="pcts"><div class="tiny muted">Brochure</div><div class="small"><b>${s.headline}</b></div><div class="tiny muted" style="margin-top:4px">Of total BV</div><div class="a" style="color:${COLORS[i]}">${P.pct(s.actual)}</div></div>
+    </div>`).join('');
+
+  const total = P.INCOME_STREAMS.reduce((a, s) => a + s.actual, 0);
+  stack.innerHTML = P.INCOME_STREAMS.map((s, i) => `<div data-f="${s.actual * 100}" style="background:${COLORS[i]}" title="${s.name}: ${P.pct(s.actual)}">${P.pct(s.actual)}</div>`).join('')
+    + `<div data-f="${(1 - total) * 100}" style="background:#64748b">Company ${P.pct(1 - total)}</div>`;
+  legend.innerHTML = P.INCOME_STREAMS.map((s, i) => `<span><i style="background:${COLORS[i]}"></i>${s.name}</span>`).join('') + '<span><i style="background:#64748b"></i>Retained by Regenus India</span>';
+  setTimeout(() => TS.$$('#stack > div').forEach((d) => (d.style.flexBasis = d.dataset.f + '%')), 300);
+
+  pkgs.innerHTML = P.PACKAGES.map((p) => `<tr><td><b>${p.name}</b></td><td class="r num">${P.num(p.bv)}</td><td class="r num">${P.inr(p.weeklyCap)}</td></tr>`).join('');
+
+  const maxRate = Math.max(...P.GENERATION_LEVELS);
+  ladder.innerHTML = P.GENERATION_LEVELS.map((r, i) => `<div style="height:${(r / maxRate) * 100}%;animation-delay:${i * 0.08}s">${P.pct(r)}<span>L${i + 1}</span></div>`).join('');
+
+  ranks.innerHTML = P.RANKS.map((r) => `<tr><td><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${r.color};margin-right:8px"></span><b>${r.name}</b></td><td class="num">${P.num(r.match)} : ${P.num(r.match)} BV</td><td>${r.pool}</td><td>${r.reward}</td></tr>`).join('');
+
+  const s = P.splitCommission(10000);
+  split.innerHTML = [
+    ['Gross commission', s.gross, ''], ['Auto-repurchase (10%)', s.repurchase, 'Spend on products, earns BV'],
+    ['TDS 5% + admin 5%', s.tds + s.admin, 'On the 90% payout portion'], ['Net to bank', s.bankNet, 'NEFT / IMPS'],
+  ].map(([l, v, sub]) => `<div class="stat-tile card" style="box-shadow:none"><div class="label">${l}</div><div class="value">${P.inr(v)}</div><div class="sub">${sub}</div></div>`).join('');
+})();
+</script>
+</body>
+</html>
