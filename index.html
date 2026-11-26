@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TrueShop — Shop Karo | Share Karo | Earn Karo</title>
+<meta name="description" content="TrueShop by Regenus India Pvt. Ltd. — e-commerce with up to 40% savings, TrueSteps wellness rewards and a transparent, 70%-capped direct selling plan.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css">
+<style>
+  .pillars .card { text-align: left; }
+  .pillar-num { font-family: var(--display); font-size: 2.6rem; font-weight: 800; color: var(--green-700); line-height: 1; }
+  .steps-flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; counter-reset: s; }
+  @media (max-width: 800px) { .steps-flow { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 480px) { .steps-flow { grid-template-columns: 1fr; } }
+  .steps-flow .card { position: relative; padding-top: 36px; }
+  .steps-flow .card::before { counter-increment: s; content: counter(s); position: absolute; top: -16px; left: 22px; width: 36px; height: 36px; border-radius: 50%; background: var(--gold); color: var(--green-900); font-weight: 800; display: grid; place-items: center; box-shadow: 0 6px 14px rgba(245,200,66,.4); }
+  .rank-road { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; }
+  @media (max-width: 900px) { .rank-road { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 480px) { .rank-road { grid-template-columns: 1fr; } }
+  .rank-card { border-top: 5px solid var(--c); text-align: center; }
+  .rank-medal { width: 64px; height: 64px; margin: 0 auto 12px; border-radius: 50%; display: grid; place-items: center; font-size: 1.8rem; background: radial-gradient(circle at 30% 30%, #fff8, transparent 60%), var(--c); box-shadow: 0 8px 20px color-mix(in srgb, var(--c) 45%, transparent); }
+  .teaser { background: linear-gradient(135deg, var(--green-800), var(--green-700)); color: #fff; border-radius: 22px; padding: 32px; display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: center; }
+  @media (max-width: 800px) { .teaser { grid-template-columns: 1fr; } }
+  .teaser label { color: #cfe3d8; }
+  .teaser .out { background: rgba(0,0,0,.18); border-radius: 16px; padding: 20px; }
+  .teaser .out .big { font-family: var(--display); font-size: 2.4rem; color: var(--gold); font-weight: 800; }
+  .walk { display: flex; align-items: center; gap: 22px; }
+  .ring { --p: 65; width: 130px; height: 130px; border-radius: 50%; background: conic-gradient(var(--gold) calc(var(--p) * 1%), var(--surface-2) 0); display: grid; place-items: center; flex: 0 0 auto; transition: --p 1s; }
+  .ring > div { width: 104px; height: 104px; border-radius: 50%; background: var(--surface); display: grid; place-items: center; text-align: center; font-weight: 700; font-family: var(--display); }
+</style>
+</head>
+<body>
+
+<section class="hero">
+  <div class="floaters"><span style="width:180px;height:180px;top:12%;left:58%"></span><span style="width:90px;height:90px;top:70%;left:8%;animation-delay:-4s"></span><span style="width:50px;height:50px;top:20%;left:30%;animation-delay:-8s"></span></div>
+  <div class="container hero-grid">
+    <div>
+      <div class="eyebrow">★ A venture by Regenus India Pvt. Ltd. · Est. 2018</div>
+      <h1>Shop Karo. <span>Share Karo.</span> Earn Karo.</h1>
+      <p class="lead">India's wellness-first social commerce platform. Save up to 40% on everyday essentials, earn TruePoints for every step you walk, and build a product-backed business with a transparent, 70%-capped reward plan.</p>
+      <div class="hero-cta">
+        <a href="shop.html" class="btn btn-gold">Start shopping →</a>
+        <a href="plan.html" class="btn btn-outline-light">Explore the plan</a>
+        <a href="dashboard.html" class="btn btn-outline-light">Member demo</a>
+      </div>
+      <p class="small" style="color:#9fbcae;margin-top:18px">✓ Free registration &nbsp; ✓ Zero joining fee &nbsp; ✓ 7-day return escrow</p>
+    </div>
+    <div class="hero-card">
+      <div class="small" style="color:#cfe3d8;margin-bottom:6px">Every ₹1,000 you spend on Health &amp; Wellness</div>
+      <div class="hero-stat"><span>Business Volume generated</span><b>650 BV</b></div>
+      <div class="hero-stat"><span>Smart Shopper cashback</span><b>₹32.50</b></div>
+      <div class="hero-stat"><span>Your sponsor's referral booster</span><b>₹65</b></div>
+      <div class="hero-stat"><span>Savings vs MRP</span><b>up to 40%</b></div>
+    </div>
+  </div>
+</section>
+
+<section class="block">
+  <div class="container">
+    <div class="grid grid-3 pillars">
+      <div class="card card-hover reveal"><div class="icon-pill">🛍️</div><div class="pillar-num"><span data-count="40" data-suffix="%">0</span></div><h3>Retail profit</h3><p class="muted">Members buy at Distributor Price (DP), well below MRP. Instant savings on every order.</p></div>
+      <div class="card card-hover reveal"><div class="icon-pill">📊</div><div class="pillar-num"><span data-count="70" data-suffix="%">0</span></div><h3>Of BV paid back to members</h3><p class="muted">Six income streams, hard-capped at 70% of total BV. Regenus retains 30% to run the business.</p></div>
+      <div class="card card-hover reveal"><div class="icon-pill">👟</div><div class="pillar-num"><span data-count="5000">0</span></div><h3>Steps = 10 TruePoints</h3><p class="muted">Walk daily, earn TruePoints. 1 TruePoint = ₹1 off your cart (up to 10% of the bill).</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="block" style="padding-top:0">
+  <div class="container">
+    <div class="section-head reveal"><div class="kicker">How it works</div><h2>From your first order to Crown Ambassador</h2></div>
+    <div class="steps-flow">
+      <div class="card reveal"><h3>Register free</h3><p class="muted small">Sign up as a customer with zero joining fee. Complete KYC (PAN, Aadhaar, bank) before your first payout.</p></div>
+      <div class="card reveal"><h3>Activate with products</h3><p class="muted small">Your first order activates a Starter (1,000 BV), Pro (2,500 BV) or VIP Prime (5,000 BV) ID.</p></div>
+      <div class="card reveal"><h3>Share &amp; build two teams</h3><p class="muted small">Refer customers into your Left and Right teams. Every 1:1 matched BV pair pays 40% of the weaker leg.</p></div>
+      <div class="card reveal"><h3>Repurchase &amp; lead</h3><p class="muted small">Earn 6-level generation income on monthly repurchases, a leadership match, and shares in the CTO pools.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="block" style="padding-top:0">
+  <div class="container">
+    <div class="teaser reveal">
+      <div>
+        <div class="eyebrow">Quick binary estimate</div>
+        <h2 style="color:#fff">What would one week's matching pay?</h2>
+        <label class="field">Left team BV this week <span id="lv" class="num" style="float:right;color:var(--gold)"></span><input type="range" id="lbv" min="0" max="200000" step="500" value="25000"></label>
+        <label class="field">Right team BV this week <span id="rv" class="num" style="float:right;color:var(--gold)"></span><input type="range" id="rbv" min="0" max="200000" step="500" value="18000"></label>
+        <label class="field">Your ID
+          <select id="pkg"></select></label>
+      </div>
+      <div class="out">
+        <div class="small" style="color:#cfe3d8">Estimated binary income (before 90/10 wallet split)</div>
+        <div class="big num" id="binOut">₹0</div>
+        <div class="row" style="border-color:rgba(255,255,255,.15)"><span>Matched BV (weaker leg)</span><b id="binMatch"></b></div>
+        <div class="row" style="border-color:rgba(255,255,255,.15)"><span>Carry forward (power leg)</span><b id="binCarry"></b></div>
+        <div class="row" style="border-color:rgba(255,255,255,.15)"><span>Weekly cap</span><b id="binCap"></b></div>
+        <div class="small" id="binNote" style="color:#ffd9a0;min-height:1.4em"></div>
+        <a href="simulator.html" class="btn btn-gold btn-sm" style="margin-top:10px">Open the full simulator →</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="block" style="padding-top:0">
+  <div class="container">
+    <div class="section-head reveal"><div class="kicker">Rank &amp; lifestyle rewards</div><h2>Five milestones, matched 1:1</h2><p class="muted">Ranks are earned on cumulative matched BV in both legs and unlock CTO pool shares plus one-time lifestyle rewards.</p></div>
+    <div class="rank-road" id="rankRoad"></div>
+  </div>
+</section>
+
+<section class="block" style="padding-top:0">
+  <div class="container grid grid-2" style="align-items:center">
+    <div class="reveal">
+      <div class="kicker" style="color:var(--green-500);font-weight:700;text-transform:uppercase;font-size:.78rem;letter-spacing:.08em">TrueSteps · TruePoints · TrueReward</div>
+      <h2>Your health is your wallet</h2>
+      <p class="muted">The TrueShop app syncs with your phone's pedometer. Every 5,000 steps earns 10 TruePoints. Redeem them for up to 10% off any order, or save up for milestone TrueReward gift hampers.</p>
+      <p class="small muted">Zero-leakage rule: BV is calculated only on the money you actually pay, after TruePoints.</p>
+      <a href="dashboard.html#steps" class="btn btn-green">Try the step tracker</a>
+    </div>
+    <div class="card reveal walk">
+      <div class="ring" id="ring"><div><span id="ringSteps">0</span><br><span class="tiny muted">steps today</span></div></div>
+      <div>
+        <h3>Today's walk</h3>
+        <p class="muted small" style="margin:0">Goal: 10,000 steps → <b>20 TruePoints</b> (₹20 off your next order)</p>
+        <button class="btn btn-gold btn-sm" id="walkBtn" style="margin-top:12px">+ Simulate a 1,500-step walk</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="block" style="padding-top:0">
+  <div class="container">
+    <div class="disclaimer reveal"><b>Transparency first.</b> TrueShop pays members only from genuine product sales. There is no joining fee and no income for recruitment alone. Total payout across all six income streams is hard-capped at <b>70% of Business Volume</b>. Individual earnings vary and are not guaranteed. <a href="compliance.html">Read our compliance policy →</a></div>
+  </div>
+</section>
+
+<script src="assets/js/plan.js"></script>
+<script src="assets/js/app.js"></script>
+<script>
+(function () {
+  const P = TrueShopPlan;
+  const icons = ['🥉', '🥈', '🥇', '💎', '👑'];
+  document.getElementById('rankRoad').innerHTML = P.RANKS.map((r, i) => `
+    <div class="card card-hover rank-card reveal" style="--c:${r.color}">
+      <div class="rank-medal">${icons[i]}</div>
+      <h3>${r.name}</h3>
+      <div class="chip chip-grey num">${P.num(r.match)} : ${P.num(r.match)} BV</div>
+      <p class="small muted" style="margin:10px 0 4px">${r.pool}</p>
+      <p class="small"><b>${r.reward}</b></p>
+    </div>`).join('');
+
+  const pkg = document.getElementById('pkg');
+  pkg.innerHTML = P.PACKAGES.map((p) => `<option value="${p.key}" ${p.key === 'pro' ? 'selected' : ''}>${p.name} — ${P.num(p.bv)} BV (cap ${P.inr(p.weeklyCap)}/week)</option>`).join('');
+  const lbv = document.getElementById('lbv'), rbv = document.getElementById('rbv');
+  function calc() {
+    const r = P.binaryClosing({ leftBV: +lbv.value, rightBV: +rbv.value, packageKey: pkg.value });
+    lv.textContent = P.num(lbv.value) + ' BV'; rv.textContent = P.num(rbv.value) + ' BV';
+    binOut.textContent = P.inr(r.paid);
+    binMatch.textContent = P.num(r.matched) + ' BV';
+    binCarry.textContent = r.powerLeg === 'Balanced' ? '—' : `${P.num(Math.max(r.carryLeft, r.carryRight))} BV (${r.powerLeg})`;
+    binCap.textContent = P.inr(r.weeklyCap);
+    binNote.textContent = r.capped ? `Weekly cap reached: ${P.inr(r.flushed)} is flushed. Upgrade the ID for a higher cap.` : '';
+  }
+  [lbv, rbv, pkg].forEach((el) => el.addEventListener('input', calc));
+  calc();
+
+  let steps = 0;
+  const ring = document.getElementById('ring'), rs = document.getElementById('ringSteps');
+  function setSteps(v) { steps = Math.min(v, 10000); ring.style.setProperty('--p', steps / 100); rs.textContent = steps.toLocaleString('en-IN'); }
+  setTimeout(() => setSteps(TS.state.steps.today), 400);
+  walkBtn.onclick = () => {
+    const before = P.stepsToPoints(steps);
+    setSteps(steps + 1500);
+    TS.state.steps.today = steps; TS.save();
+    const gained = P.stepsToPoints(steps) - before;
+    TS.toast(gained ? `🎉 Milestone! +${gained} TruePoints earned` : `👟 ${steps.toLocaleString('en-IN')} steps. Keep going!`);
+  };
+})();
+</script>
+</body>
+</html>
