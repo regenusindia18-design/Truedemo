@@ -15,39 +15,14 @@
   const initials = (n) => n.split(' ').map((x) => x[0]).join('').slice(0, 2);
   const avatar = (m) => `<span class="mini-av" style="background:${COLORS[m.idx % COLORS.length]}">${esc(initials(m.name))}</span>`;
   const STATUS_CHIP = { active: 'chip', inactive: 'chip chip-grey', blocked: 'chip chip-red', verified: 'chip', pending: 'chip chip-warn', rejected: 'chip chip-red', not_submitted: 'chip chip-grey',
-    Pending_Escrow: 'chip chip-warn', Confirmed: 'chip', Returned: 'chip chip-red', approved: 'chip', open: 'chip chip-warn', closed: 'chip chip-grey' };
-  const chip = (s) => `<span class="${STATUS_CHIP[s] || 'chip'}">${esc(String(s).replace('_', ' '))}</span>`;
+    Pending_Escrow: 'chip chip-warn', Confirmed: 'chip', Returned: 'chip chip-red', Cancelled: 'chip chip-grey', approved: 'chip', open: 'chip chip-warn', closed: 'chip chip-grey',
+    placed: 'chip chip-grey', packed: 'chip chip-blue', shipped: 'chip chip-blue', out_for_delivery: 'chip chip-blue', delivered: 'chip' };
+  const chip = (s) => `<span class="${STATUS_CHIP[s] || 'chip'}">${esc(A.STAGE_LABEL[s] || String(s).replace(/_/g, ' '))}</span>`;
 
   /* ======================================================= derived network */
   let NET = null;
-  function computeNetwork() {
-    const { members, L, R } = db();
-    const n = members.length;
-    const sub = new Array(n).fill(0), cnt = new Array(n).fill(0);
-    const since = lastRunAt();
-    const wsub = new Array(n).fill(0);
-    for (let i = n - 1; i >= 0; i--) { // children always have a higher index than their parent
-      const m = members[i];
-      const own = m.status === 'blocked' ? 0 : pkgOf(m.pkg).bv;
-      const l = L[i], r = R[i];
-      sub[i] = own + (l != null ? sub[l] : 0) + (r != null ? sub[r] : 0);
-      cnt[i] = 1 + (l != null ? cnt[l] : 0) + (r != null ? cnt[r] : 0);
-      wsub[i] = (m.joined > since ? own : 0) + (l != null ? wsub[l] : 0) + (r != null ? wsub[r] : 0);
-    }
-    NET = members.map((m, i) => {
-      const lb = L[i] != null ? sub[L[i]] : 0, rb = R[i] != null ? sub[R[i]] : 0;
-      return {
-        left: lb, right: rb, team: cnt[i] - 1,
-        leftCount: L[i] != null ? cnt[L[i]] : 0, rightCount: R[i] != null ? cnt[R[i]] : 0,
-        weekL: L[i] != null ? wsub[L[i]] : 0, weekR: R[i] != null ? wsub[R[i]] : 0,
-        rank: P.rankFor(lb, rb).current,
-        directs: 0,
-      };
-    });
-    members.forEach((m) => { if (m.sponsor != null) NET[m.sponsor].directs++; });
-    return NET;
-  }
-  const lastRunAt = () => { const r = db().payoutRuns[0]; return r ? r.t : Date.now() - 7 * DAY; };
+  const computeNetwork = () => (NET = A.network(db()));
+  const lastRunAt = () => A.lastRunAt(db());
   const byId = (id) => db().members.find((m) => m.id.toLowerCase() === String(id).trim().toLowerCase());
   const totalEarned = (m) => Object.values(m.earned).reduce((a, b) => a + b, 0);
 
@@ -66,7 +41,7 @@
     ['genealogy', '🌳', 'Genealogy Tree'],
     ['kyc', '🪪', 'KYC Approvals', () => db().members.filter((m) => m.kyc === 'pending').length],
     ['Commerce'],
-    ['orders', '📦', 'Orders & Escrow', () => db().orders.filter((o) => o.status === 'Pending_Escrow').length],
+    ['orders', '📦', 'Orders & Escrow', () => db().orders.filter((o) => o.status === 'Pending_Escrow' && !o.deliveredAt).length],
     ['products', '🏷️', 'Products & BV'],
     ['Finance'],
     ['payout', '⚡', 'Weekly Payout Run'],
@@ -217,8 +192,15 @@
   };
 
   /* ======================================================= MEMBER PROFILE */
+  const canViewAs = () => !CDB || CDB.can(CDB.actor(), 'mlm.manage');
+  function viewAsMember(m) {
+    if (!canViewAs()) { TS.toast('Your role cannot view member accounts'); return; }
+    A.log(`${CDB ? CDB.actor().name : 'Admin'} started viewing as member ${m.id} (${m.name})`);
+    TS.setViewAs(m.id); location.href = 'dashboard.html';
+  }
   function profile(m) {
     const n = NET[m.idx], sp = m.sponsor != null ? db().members[m.sponsor] : null, pa = m.parent != null ? db().members[m.parent] : null;
+    const w = A.wallets(m), bv = A.orderBV(m);
     TS.modal(`${esc(m.name)} <span class="chip chip-gold" style="margin-left:8px">${m.id}</span>`, `
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${chip(m.status)} ${chip(m.kyc)} <span class="chip chip-blue">${pkgOf(m.pkg).name}</span> ${n.rank ? `<span class="chip" style="background:${n.rank.color};color:#fff">${n.rank.name}</span>` : ''}</div>
       <div class="row"><span>City · Phone</span><b>${esc(m.city)} · ${esc(m.phone)}</b></div>
@@ -229,17 +211,29 @@
       <div class="row"><span>Cumulative BV L : R</span><b>${P.num(n.left)} : ${P.num(n.right)}</b></div>
       <div class="row"><span>Carry forward L : R</span><b>${P.num(m.carryL)} : ${P.num(m.carryR)}</b></div>
       <div class="row"><span>Total earned</span><b>${P.inr(totalEarned(m))}</b></div>
-      <div class="row"><span>Payout · Repurchase wallet</span><b>${P.inr(m.wallet.payout)} · ${P.inr(m.wallet.repurchase)}</b></div>
+      <div class="row"><span>Payout · Repurchase wallet</span><b>${P.inr(w.payout)} · ${P.inr(w.repurchase)}</b></div>
+      <div class="row"><span>Cashback · TruePoints</span><b>${P.inr(w.cashback, 2)} · ${P.num(w.points)} pts</b></div>
+      <div class="row"><span>Rewards next lapse</span><b>${w.next ? `${P.inr(w.next.amount, 2)} on ${fmtDate(w.next.t)}` : '—'}${w.lastUsedAt ? ` <span class="tiny muted">· last used ${fmtDate(w.lastUsedAt)}</span>` : ''}</b></div>
+      <h4 style="margin:14px 0 4px">Personal order BV</h4>
+      <div class="row"><span>Confirmed this month</span><b>${P.num(bv.month)} BV</b></div>
+      <div class="row"><span>In escrow (not counted yet)</span><b>${P.num(bv.escrow)} BV</b></div>
+      <div class="row"><span>Lifetime confirmed · orders</span><b>${P.num(bv.lifetime)} BV · ${bv.orders} orders</b></div>
+      ${bv.log.slice(0, 4).map((l) => `<div class="row small"><span>${fmtDT(l.t)} · ${esc(l.ref)} · ${esc(l.note)}</span><b>+${P.num(l.bv)} BV</b></div>`).join('')}
+      ${A.isLinked(m) ? '<p class="tiny muted" style="margin:6px 0 0">This is the storefront demo account: its wallets, rewards, KYC and orders are shared with My Dashboard and the Shop.</p>' : ''}
       <div class="acts" style="margin-top:14px">
         <button class="btn btn-green btn-sm" id="pfTree">🌳 View tree</button>
+        <a class="btn btn-ghost btn-sm" href="#orders?m=${m.id}" id="pfOrders">📦 Orders</a>
+        ${canViewAs() ? '<button class="btn btn-gold btn-sm" id="pfAs">👁 View as member</button>' : ''}
         ${m.idx ? `<button class="btn btn-ghost btn-sm" id="pfBlock">${m.status === 'blocked' ? 'Unblock' : '⛔ Block'}</button>` : ''}
         ${m.idx && m.kyc === 'pending' ? '<button class="btn btn-gold btn-sm" id="pfKyc">Approve KYC</button>' : ''}
       </div>`, (body, close) => {
       $('#pfTree', body).onclick = () => { close(); treeRoot = m.idx; location.hash = 'genealogy'; if (location.hash === '#genealogy') rerender(); };
+      $('#pfOrders', body).onclick = () => { close(); ordTab = 'all'; ordQ = m.id; };
+      const as = $('#pfAs', body); if (as) as.onclick = () => { close(); viewAsMember(m); };
       const b = $('#pfBlock', body);
       if (b) b.onclick = () => { m.status = m.status === 'blocked' ? 'active' : 'blocked'; A.log(`Admin ${m.status === 'blocked' ? 'blocked' : 'unblocked'} ${m.id}`); A.save(); close(); TS.toast(`${m.id} ${m.status}`); rerender(); };
       const k = $('#pfKyc', body);
-      if (k) k.onclick = () => { m.kyc = 'verified'; A.log(`KYC approved for ${m.id}`); A.save(); close(); TS.toast('✅ KYC approved'); rerender(); };
+      if (k) k.onclick = () => { A.setKyc(m, 'verified'); A.log(`KYC approved for ${m.id}`); A.save(); close(); TS.toast('✅ KYC approved'); rerender(); };
     });
   }
   document.addEventListener('click', (e) => {
@@ -258,29 +252,31 @@
         <select class="input" id="mpkg"><option value="">All packages</option>${P.PACKAGES.map((p) => `<option value="${p.key}">${p.name}</option>`).join('')}</select>
         <select class="input" id="msort"><option value="joined">Newest first</option><option value="team">Largest team</option><option value="earned">Top earners</option></select>
       </div>
-      <div class="table-wrap"><table class="dt"><thead><tr><th>Member</th><th>Sponsor</th><th>Package</th><th class="r">Team</th><th class="r">BV L : R</th><th>Rank</th><th>KYC</th><th>Status</th><th class="r">Earned</th><th></th></tr></thead><tbody id="mbody"></tbody></table></div>
+      <div class="table-wrap"><table class="dt"><thead><tr><th>Member</th><th>Sponsor</th><th>Package</th><th class="r">Team</th><th class="r">Team BV L : R</th><th class="r">Own BV<div class="tiny muted">month · escrow</div></th><th>Rank</th><th>KYC</th><th>Status</th><th class="r">Earned</th><th></th></tr></thead><tbody id="mbody"></tbody></table></div>
       <div class="pager" id="mpager"></div>`;
     ['status', 'kyc', 'pkg', 'sort'].forEach((k) => { $('#m' + k).value = mf[k]; $('#m' + k).onchange = (e) => { mf[k] = e.target.value; mf.page = 0; draw(); }; });
     $('#mq').oninput = (e) => { mf.q = e.target.value; mf.page = 0; draw(); };
+    $('#mbody').addEventListener('click', (e) => { const b = e.target.closest('[data-as]'); if (b) viewAsMember(byId(b.dataset.as)); });
     const filtered = () => {
       const q = mf.q.toLowerCase();
       let rows = db().members.filter((m) => (!q || (m.id + ' ' + m.name + ' ' + m.city).toLowerCase().includes(q)) && (!mf.status || m.status === mf.status) && (!mf.kyc || m.kyc === mf.kyc) && (!mf.pkg || m.pkg === mf.pkg));
       const key = { joined: (m) => -m.joined, team: (m) => -NET[m.idx].team, earned: (m) => -totalEarned(m) }[mf.sort];
       return rows.sort((a, b) => key(a) - key(b));
     };
-    $('#mCsv').onclick = () => downloadCSV('trueshop-members.csv', [['ID', 'Name', 'City', 'Sponsor', 'Package', 'Team', 'Left BV', 'Right BV', 'Rank', 'KYC', 'Status', 'Earned', 'Joined']]
-      .concat(filtered().map((m) => [m.id, m.name, m.city, m.sponsor != null ? db().members[m.sponsor].id : '', pkgOf(m.pkg).name, NET[m.idx].team, NET[m.idx].left, NET[m.idx].right, NET[m.idx].rank ? NET[m.idx].rank.name : '', m.kyc, m.status, totalEarned(m), new Date(m.joined).toISOString()])));
+    $('#mCsv').onclick = () => downloadCSV('trueshop-members.csv', [['ID', 'Name', 'City', 'Sponsor', 'Package', 'Team', 'Left BV', 'Right BV', 'Own BV month', 'Own BV escrow', 'Own BV lifetime', 'Rank', 'KYC', 'Status', 'Earned', 'Joined']]
+      .concat(filtered().map((m) => [m.id, m.name, m.city, m.sponsor != null ? db().members[m.sponsor].id : '', pkgOf(m.pkg).name, NET[m.idx].team, NET[m.idx].left, NET[m.idx].right, A.orderBV(m).month, A.orderBV(m).escrow, A.orderBV(m).lifetime, NET[m.idx].rank ? NET[m.idx].rank.name : '', m.kyc, m.status, totalEarned(m), new Date(m.joined).toISOString()])));
     function draw() {
       const rows = filtered(), per = 15, pages = Math.max(1, Math.ceil(rows.length / per));
       mf.page = Math.min(mf.page, pages - 1);
       const slice = rows.slice(mf.page * per, mf.page * per + per);
-      $('#mbody').innerHTML = slice.length ? slice.map((m) => { const n = NET[m.idx]; return `<tr>
+      $('#mbody').innerHTML = slice.length ? slice.map((m) => { const n = NET[m.idx], ob = A.orderBV(m); return `<tr>
         <td style="white-space:nowrap">${avatar(m)}<a href="#" data-prof="${m.id}"><b>${esc(m.name)}</b></a><div class="tiny muted" style="margin-left:38px">${m.id} · ${esc(m.city)}</div></td>
         <td class="small">${m.sponsor != null ? db().members[m.sponsor].id : '—'}</td><td class="small">${pkgOf(m.pkg).name}</td>
         <td class="r num">${n.team}</td><td class="r num small">${P.num(n.left)} : ${P.num(n.right)}</td>
+        <td class="r num small">${P.num(ob.month)}${ob.escrow ? `<div class="tiny muted">+${P.num(ob.escrow)} held</div>` : ''}</td>
         <td class="small">${n.rank ? `<span style="color:${n.rank.color};font-weight:700">●</span> ${n.rank.name}` : '<span class="muted">—</span>'}</td>
         <td>${chip(m.kyc)}</td><td>${chip(m.status)}</td><td class="r num">${P.inr(totalEarned(m))}</td>
-        <td><button class="btn btn-ghost btn-sm" data-prof="${m.id}">View</button></td></tr>`; }).join('') : '<tr><td colspan="10" class="empty">No members match these filters.</td></tr>';
+        <td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" data-prof="${m.id}">View</button>${canViewAs() ? ` <button class="btn btn-ghost btn-sm" data-as="${m.id}" title="Open My Dashboard as this member (read-only)">👁 View as</button>` : ''}</td></tr>`; }).join('') : '<tr><td colspan="11" class="empty">No members match these filters.</td></tr>';
       $('#mpager').innerHTML = `<span>Showing ${rows.length ? mf.page * per + 1 : 0}–${Math.min(rows.length, (mf.page + 1) * per)} of ${rows.length}</span>
         <span class="acts"><button class="btn btn-ghost btn-sm" id="pv" ${mf.page ? '' : 'disabled'}>← Prev</button><span style="padding:6px">Page ${mf.page + 1} / ${pages}</span><button class="btn btn-ghost btn-sm" id="nx" ${mf.page < pages - 1 ? '' : 'disabled'}>Next →</button></span>`;
       $('#pv').onclick = () => { mf.page--; draw(); }; $('#nx').onclick = () => { mf.page++; draw(); };
@@ -381,41 +377,83 @@
     $$('.tabs button', el).forEach((b) => (b.onclick = () => { kycTab = b.dataset.k; rerender(); }));
     el.onclick = (e) => {
       const ok = e.target.closest('[data-ok]'), no = e.target.closest('[data-no]');
-      if (ok) { const m = db().members[+ok.dataset.ok]; m.kyc = 'verified'; A.log(`KYC approved for ${m.id}`); A.save(); TS.toast(`✅ ${m.id} verified`); rerender(); }
+      if (ok) { const m = db().members[+ok.dataset.ok]; A.setKyc(m, 'verified'); A.log(`KYC approved for ${m.id}`); A.save(); TS.toast(`✅ ${m.id} verified`); rerender(); }
       if (no) {
         const m = db().members[+no.dataset.no];
         TS.modal('Reject KYC: ' + m.id, `<label class="field">Reason<select class="input" id="rr"><option>PAN name mismatch</option><option>Aadhaar image unclear</option><option>Bank account holder mismatch</option><option>Duplicate PAN</option></select></label><button class="btn btn-gold" id="rrGo" style="width:100%">Reject &amp; notify member</button>`, (b, close) => {
-          $('#rrGo', b).onclick = () => { m.kyc = 'rejected'; A.log(`KYC rejected for ${m.id}: ${$('#rr', b).value}`); A.save(); close(); TS.toast('KYC rejected, member notified'); rerender(); };
+          $('#rrGo', b).onclick = () => { A.setKyc(m, 'rejected'); A.log(`KYC rejected for ${m.id}: ${$('#rr', b).value}`); A.save(); close(); TS.toast('KYC rejected, member notified'); rerender(); };
         });
       }
     };
   };
 
   /* ======================================================= ORDERS */
-  let ordTab = 'Pending_Escrow';
+  let ordTab = 'transit', ordQ = '';
+  const NEXT_ACT = { placed: '📦 Pack', packed: '🚚 Ship', shipped: '🛵 Out for delivery', out_for_delivery: '✅ Mark delivered' };
+  const ORD_TABS = {
+    transit: ['In transit', (o) => o.status === 'Pending_Escrow' && !o.deliveredAt],
+    escrow: ['Return window', (o) => o.status === 'Pending_Escrow' && !!o.deliveredAt],
+    Confirmed: ['Confirmed', (o) => o.status === 'Confirmed'],
+    closed: ['Returned / cancelled', (o) => o.status === 'Returned' || o.status === 'Cancelled'],
+    all: ['All', () => true],
+  };
+  function trackModal(o) {
+    const m = db().members[o.mi], stg = A.stageOf(o), i = A.stageIdx(o), stop = o.status === 'Returned' || o.status === 'Cancelled';
+    TS.modal(`Track ${o.id}`, `
+      <div class="small">${chip(o.status)} ${chip(stg)} · <a href="#" data-prof="${m.id}">${m.id}</a> ${esc(m.name)}${o.track.awb ? ` · ${esc(o.track.courier)} AWB <b>${o.track.awb}</b>` : ''}</div>
+      <div class="track ${stop ? 'stop' : ''}">${A.STAGES.map((st, k) => `<div class="st ${k <= i ? 'done' : ''} ${k === i && !stop ? 'now' : ''}">${A.STAGE_LABEL[st]}</div>`).join('')}</div>
+      <div class="timeline-log" style="margin-top:8px">${o.track.events.slice().reverse().map((e) => `<div><time>${fmtDT(e.t)}</time><span><b>${esc(A.STAGE_LABEL[e.stage] || e.stage.replace(/_/g, ' '))}</b> · ${esc(e.note || '')}</span></div>`).join('')}</div>
+      <div class="row small" style="margin-top:8px"><span>Escrow</span><b>${o.deliveredAt ? (o.status === 'Pending_Escrow' ? `window closes ${fmtDT(o.escrowEndsAt)}` : o.status) : 'starts on delivery'}</b></div>
+      <div class="row small"><span>BV · cashback</span><b>${P.num(o.bv)} BV · ${P.inr(o.cashback || 0, 2)} ${o.bvCredited ? '✅ credited' : '(not credited)'}</b></div>`);
+  }
   VIEWS.orders = (el) => {
-    const d = db(), prods = window.TS_PRODUCTS;
-    const list = d.orders.filter((o) => ordTab === 'all' || o.status === ordTab);
-    el.innerHTML = head('Orders & Escrow', `Order BV is held in Pending_Escrow for ${P.ESCROW_DAYS} days after delivery. Returns reverse the BV and any linked commission before payout closing.`) + `
-      <div class="tabs">${['Pending_Escrow', 'Confirmed', 'Returned', 'all'].map((k) => `<button data-k="${k}" class="${k === ordTab ? 'active' : ''}">${k.replace('_', ' ')} (${k === 'all' ? d.orders.length : d.orders.filter((o) => o.status === k).length})</button>`).join('')}</div>
-      <div class="table-wrap"><table class="dt"><thead><tr><th>Order</th><th>Member</th><th>Items</th><th>Payment</th><th class="r">Paid</th><th class="r">TruePoints</th><th class="r">BV</th><th>Status</th><th></th></tr></thead><tbody>
-      ${list.map((o) => { const m = d.members[o.mi]; const left = Math.max(0, P.ESCROW_DAYS - (Date.now() - o.t) / DAY); return `<tr>
-        <td><b>${o.id}</b>${o.channel === 'offline_store' ? ' <span class="chip chip-blue">store</span>' : ''}<div class="tiny muted">${fmtDT(o.t)}</div></td>
+    const d = db(), prods = window.TS_PRODUCTS, now = Date.now();
+    const hq = (location.hash.split('?')[1] || '').match(/m=([^&]+)/); if (hq) { ordQ = decodeURIComponent(hq[1]); ordTab = 'all'; }
+    const q = ordQ.trim().toLowerCase();
+    const match = (o) => !q || (o.id + ' ' + d.members[o.mi].id + ' ' + d.members[o.mi].name + ' ' + (o.track.awb || '')).toLowerCase().includes(q);
+    const list = d.orders.filter((o) => ORD_TABS[ordTab][1](o) && match(o));
+    el.innerHTML = head('Orders & Escrow', `Track every order from packing to delivery. BV is held in Pending_Escrow until ${P.ESCROW_DAYS} days after delivery, then confirmed automatically and credited to the member with the 5% cashback. A return inside the window means the BV is never credited.`) + `
+      <div class="tabs">${Object.entries(ORD_TABS).map(([k, [label, f]]) => `<button data-k="${k}" class="${k === ordTab ? 'active' : ''}">${label} (${d.orders.filter((o) => f(o) && match(o)).length})</button>`).join('')}</div>
+      <div class="toolbar"><input class="input grow" id="oq" placeholder="Search order, member ID, name or AWB" value="${esc(ordQ)}"></div>
+      <div class="table-wrap"><table class="dt"><thead><tr><th>Order</th><th>Member</th><th>Items</th><th class="r">Paid</th><th class="r">BV</th><th>Tracking</th><th>Escrow</th><th></th></tr></thead><tbody>
+      ${list.map((o) => { const m = d.members[o.mi], stg = A.stageOf(o), left = A.escrowLeft(o, now), open = o.status === 'Pending_Escrow'; return `<tr>
+        <td><b>${o.id}</b>${o.channel === 'offline_store' ? ' <span class="chip chip-blue">store</span>' : ''}<div class="tiny muted">${fmtDT(o.t)} · ${esc(o.pay)}</div></td>
         <td class="small"><a href="#" data-prof="${m.id}">${m.id}</a><div class="tiny muted">${esc(m.name)}</div></td>
         <td class="small">${o.items.map((it) => { const p = prods.find((x) => x.id === it.pid); return `${p.emoji} ${esc(p.name.split(' ').slice(0, 3).join(' '))} ×${it.qty}`; }).join('<br>')}</td>
-        <td class="small">${o.pay}</td><td class="r num">${P.inr(o.paid)}</td><td class="r num">${o.pointsUsed || 0}</td><td class="r num">${P.num(o.bv)}</td>
-        <td>${chip(o.status)}${o.status === 'Pending_Escrow' ? `<div class="tiny muted">${Math.ceil(left)}d left</div>` : ''}</td>
-        <td><div class="acts">${o.status === 'Pending_Escrow' ? `<button class="btn btn-green btn-sm" data-rel="${o.id}">Release</button><button class="btn btn-ghost btn-sm" data-ret="${o.id}">Return</button>` : ''}</div></td></tr>`; }).join('') || '<tr><td colspan="9" class="empty">No orders</td></tr>'}
+        <td class="r num">${P.inr(o.paid)}${o.pointsUsed ? `<div class="tiny muted">+${o.pointsUsed} rewards</div>` : ''}</td><td class="r num">${P.num(o.bv)}</td>
+        <td>${chip(stg)}${o.track.awb ? `<div class="tiny muted">${esc(o.track.courier)} · ${o.track.awb}</div>` : ''}</td>
+        <td>${chip(o.status)}${open && left != null ? `<div class="tiny muted">${Math.ceil(left / DAY)}d left to return</div>` : open ? '<div class="tiny muted">starts on delivery</div>' : ''}</td>
+        <td><div class="acts" style="flex-wrap:nowrap">
+          <button class="btn btn-ghost btn-sm" data-trk="${o.id}">Track</button>
+          ${open && NEXT_ACT[stg] ? `<button class="btn btn-green btn-sm" data-adv="${o.id}">${NEXT_ACT[stg]}</button>` : ''}
+          ${open && A.stageIdx(o) < A.STAGES.indexOf('shipped') ? `<button class="btn btn-ghost btn-sm" data-can="${o.id}">Cancel</button>` : ''}
+          ${open && o.deliveredAt ? `<button class="btn btn-green btn-sm" data-rel="${o.id}">Release</button><button class="btn btn-ghost btn-sm" data-ret="${o.id}">Return</button>` : ''}
+        </div></td></tr>`; }).join('') || '<tr><td colspan="8" class="empty">No orders</td></tr>'}
       </tbody></table></div>`;
-    $$('.tabs button', el).forEach((b) => (b.onclick = () => { ordTab = b.dataset.k; rerender(); }));
+    $$('.tabs button', el).forEach((b) => (b.onclick = () => { ordTab = b.dataset.k; if (location.hash.includes('?')) location.hash = 'orders'; else rerender(); }));
+    $('#oq').oninput = (e) => { ordQ = e.target.value; const pos = e.target.selectionStart; if (location.hash.includes('?')) history.replaceState(null, '', '#orders'); rerender(); const i = $('#oq'); i.focus(); i.setSelectionRange(pos, pos); };
     el.onclick = (e) => {
-      const rel = e.target.closest('[data-rel]'), ret = e.target.closest('[data-ret]');
-      const id = rel ? rel.dataset.rel : ret ? ret.dataset.ret : null;
-      const o = d.orders.find((x) => x.id === id);
-      if (!o) return;
-      if (rel) { o.status = 'Confirmed'; A.log(`${o.id} released from escrow (${P.num(o.bv)} BV confirmed)`); TS.toast(`${o.id} confirmed, BV eligible for payout`); }
-      else { o.status = 'Returned'; A.log(`${o.id} returned; ${P.num(o.bv)} BV and linked commissions reversed`); TS.toast(`↩️ ${o.id} returned, ${P.num(o.bv)} BV reversed`); }
-      A.save(); rerender();
+      const b = e.target.closest('button'); if (!b) return;
+      const id = b.dataset.trk || b.dataset.adv || b.dataset.can || b.dataset.rel || b.dataset.ret;
+      const o = d.orders.find((x) => x.id === id); if (!o) return;
+      const done = (msg, toast) => { A.log(msg); A.save(); A.touch(d.members[o.mi]); TS.toast(toast); rerender(); };
+      try {
+        if (b.dataset.trk) trackModal(o);
+        else if (b.dataset.adv) { const st = A.advance(d, o, Date.now()); done(`${o.id} marked ${A.STAGE_LABEL[st].toLowerCase()}${o.track.awb && st === 'shipped' ? ` (${o.track.courier} ${o.track.awb})` : ''}`, `${o.id}: ${A.STAGE_LABEL[st]}${st === 'delivered' ? `. ${P.ESCROW_DAYS}-day return window started` : ''}`); }
+        else if (b.dataset.can) { A.cancel(d, o, Date.now(), 'Cancelled by admin'); done(`${o.id} cancelled before shipping`, `${o.id} cancelled`); }
+        else if (b.dataset.ret) { A.returnOrder(d, o, Date.now(), 'Return accepted by admin'); done(`${o.id} returned; ${P.num(o.bv)} BV will not be credited`, `↩️ ${o.id} returned, ${P.num(o.bv)} BV not credited`); }
+        else if (b.dataset.rel) {
+          if (Date.now() >= o.escrowEndsAt) { A.confirm(d, o, Date.now()); done(`${o.id} released from escrow (${P.num(o.bv)} BV credited to ${d.members[o.mi].id})`, `${o.id} confirmed, BV credited`); return; }
+          TS.modal(`Release ${o.id} early?`, `<p class="small">The member's return window is open until <b>${fmtDT(o.escrowEndsAt)}</b>. Releasing now credits ${P.num(o.bv)} BV and ${P.inr(o.cashback, 2)} cashback and ends the window. This is recorded in the audit log.</p>
+            <label class="field">Reason (required)<input id="rlr" placeholder="e.g. Customer confirmed by phone, no return"></label><div class="small" id="rle" style="color:var(--danger);min-height:1.2em"></div>
+            <button class="btn btn-gold" id="rlGo" style="width:100%">Release early</button>`, (body, close) => {
+            $('#rlGo', body).onclick = () => {
+              try { A.confirm(d, o, Date.now(), $('#rlr', body).value); } catch (x) { $('#rle', body).textContent = x.message; return; }
+              close(); done(`${o.id} released early: "${$('#rlr', body).value.trim()}" (${P.num(o.bv)} BV credited to ${d.members[o.mi].id})`, `${o.id} confirmed early, BV credited`);
+            };
+          });
+        }
+      } catch (x) { TS.toast('⚠️ ' + esc(x.message)); }
     };
   };
 
@@ -519,8 +557,7 @@
         <button class="btn btn-gold" id="prOk" style="width:100%;margin-top:12px">Approve &amp; release</button>`, (b, close) => {
         $('#prOk', b).onclick = () => {
           run.rows.forEach((x) => {
-            const s = P.splitCommission(x.total);
-            x.m.wallet.payout = P.round2(x.m.wallet.payout + s.payoutGross); x.m.wallet.repurchase = P.round2(x.m.wallet.repurchase + s.repurchase);
+            if (x.total > 0) A.creditWallet(x.m, x.total, 'Binary', `Week ${d.week} payout · binary ${P.inr(x.binary)} + direct ${P.inr(x.direct)}`);
             x.m.earned.binary = P.round2(x.m.earned.binary + x.binary); x.m.earned.direct = P.round2(x.m.earned.direct + x.direct);
             x.m.carryL = x.r.carryLeft; x.m.carryR = x.r.carryRight;
           });
@@ -603,7 +640,7 @@
     $('#ctoGo').onclick = () => {
       const tot = pools.reduce((a, p) => a + (p.shares ? p.amount : 0), 0);
       if (!tot) { TS.toast('No qualified rank holders this month'); return; }
-      pools.forEach((p) => p.elig.forEach((x) => { const amt = P.round2(p.perShare * x.shares), s = P.splitCommission(amt); x.m.earned.cto = P.round2(x.m.earned.cto + amt); x.m.wallet.payout += s.payoutGross; x.m.wallet.repurchase += s.repurchase; }));
+      pools.forEach((p) => p.elig.forEach((x) => { const amt = P.round2(p.perShare * x.shares); x.m.earned.cto = P.round2(x.m.earned.cto + amt); A.creditWallet(x.m, amt, 'CTO', `${p.pool.name} · ${x.shares} share${x.shares > 1 ? 's' : ''}`); }));
       d.ctoRuns.unshift({ t: now, monthBV, total: tot });
       A.log(`CTO pools distributed: ${P.inr(tot)} from ${P.num(monthBV)} monthly BV`); A.save(); TS.toast(`👑 ${P.inr(tot)} distributed to rank holders`); rerender();
     };
@@ -721,5 +758,6 @@
   };
   try { const th = localStorage.getItem('trueshop-theme'); if (th) document.documentElement.dataset.theme = th; } catch (e) {}
   window.addEventListener('hashchange', () => { if (!$('#app').hidden) route(); });
+  window.addEventListener('storage', () => { if (!$('#app').hidden && !document.querySelector('.modal-back')) route(); }); // member acted in another tab
   boot();
 })();

@@ -3,9 +3,9 @@
  * orders, withdrawals, tickets. Persisted in localStorage so admin actions
  * survive reloads. Replace with API calls when a backend exists.
  * ========================================================================= */
-(function () {
+(function (root) {
   'use strict';
-  const P = TrueShopPlan;
+  const P = root.TrueShopPlan;
   const KEY = 'trueshop-admin-v1';
   const DAY = 86400000;
 
@@ -79,7 +79,7 @@
     members.forEach((m) => { m.earned.direct = Math.round(m.earned.direct); });
 
     // Orders over the last 20 days
-    const prods = window.TS_PRODUCTS;
+    const prods = root.TS_PRODUCTS;
     const orders = [];
     for (let k = 0; k < 70; k++) {
       const mi = 1 + Math.floor(r() * (N - 1));
@@ -113,18 +113,240 @@
     };
   }
 
+
+  /* ======================================================= linked member
+   * The storefront demo user (TS.state, app.js) IS one of these members
+   * (TS10248). Orders, BV, rewards, wallet credits and KYC are shared, so
+   * whatever the member does shows in the admin and vice versa. */
+  const linked = () => (root.TS && root.TS.state && root.TS.state.member ? root.TS : null);
+  const linkedIdx = (d) => { const T = linked(); return T ? d.members.findIndex((m) => m.id === T.state.member.id) : -1; };
+  const isLinked = (d, m) => m.idx === linkedIdx(d);
+  /** Rewards account (cashback + TruePoints lots) of a member. */
+  function rewardsOf(d, m) {
+    if (isLinked(d, m)) return linked().state.rewards;
+    if (!m.rewards) m.rewards = P.newRewards();
+    return m.rewards;
+  }
+  const touch = (d, m) => { if (isLinked(d, m)) linked().save(); };
+  function wallets(d, m, now = Date.now()) {
+    const b = P.rewardSummary(rewardsOf(d, m), now);
+    const w = isLinked(d, m) ? linked().state.wallets : m.wallet;
+    return { payout: w.payout, repurchase: w.repurchase, cashback: b.cashback, points: b.points, next: b.next, lastUsedAt: b.lastUsedAt };
+  }
+  /** Credit a released commission: 90% payout wallet, 10% auto-repurchase wallet. */
+  function creditWallet(d, m, gross, type, note, now = Date.now()) {
+    const s = P.splitCommission(gross);
+    m.wallet.payout = P.round2(m.wallet.payout + s.payoutGross); m.wallet.repurchase = P.round2(m.wallet.repurchase + s.repurchase);
+    (m.ledger = m.ledger || []).unshift({ t: now, type, note, amount: P.round2(gross) });
+    const T = isLinked(d, m) && linked();
+    if (T) {
+      T.state.wallets.payout = P.round2(T.state.wallets.payout + s.payoutGross); T.state.wallets.repurchase = P.round2(T.state.wallets.repurchase + s.repurchase);
+      T.state.ledger.unshift({ t: now, type, note, amount: P.round2(gross) }); T.save();
+    }
+    return s;
+  }
+  function setKyc(d, m, status) {
+    m.kyc = status;
+    const T = isLinked(d, m) && linked();
+    if (T) { const k = T.state.member.kyc; if (status === 'verified') { k.pan = k.aadhaar = k.bank = true; } else if (status === 'rejected') k.bank = false; T.state.member.kycStatus = status; T.save(); }
+  }
+  function syncLinked(d) {
+    const T = linked(), i = linkedIdx(d); if (!T || i < 0) return;
+    const m = d.members[i], s = T.state, k = s.member.kyc;
+    m.name = s.member.name; m.pkg = s.member.package; m.city = m.city || 'Pune';
+    m.wallet = { payout: s.wallets.payout, repurchase: s.wallets.repurchase };
+    m.kyc = k.pan && k.aadhaar && k.bank ? 'verified' : s.member.kycStatus === 'rejected' ? 'rejected' : 'pending'; // the storefront account is the source of truth
+  }
+
+  /* ======================================================= orders: tracking + escrow
+   * Order status: Pending_Escrow → Confirmed, or Cancelled / Returned.
+   * Fulfilment stage (track.events): placed → packed → shipped →
+   * out_for_delivery → delivered. The 7-day return window (escrow) starts at
+   * delivery. BV and cashback are credited only when the order is Confirmed. */
+  const STAGES = ['placed', 'packed', 'shipped', 'out_for_delivery', 'delivered'];
+  const STAGE_LABEL = { placed: 'Order placed', packed: 'Packed', shipped: 'Shipped', out_for_delivery: 'Out for delivery', delivered: 'Delivered' };
+  const COURIERS = ['Delhivery', 'Blue Dart', 'Ecom Express', 'India Post'];
+  const HOUR = 3600000;
+  const hash = (s) => [...String(s)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
+  const stageOf = (o) => { const ev = o.track.events.filter((e) => STAGES.includes(e.stage)); return ev.length ? ev[ev.length - 1].stage : 'placed'; };
+  const stageIdx = (o) => STAGES.indexOf(stageOf(o));
+  const escrowLeft = (o, now = Date.now()) => (o.deliveredAt ? Math.max(0, o.escrowEndsAt - now) : null);
+  const assignAwb = (o) => { if (!o.track.awb) { const h = hash(o.id); o.track.courier = COURIERS[h % COURIERS.length]; o.track.awb = String(h % 9000000000 + 1000000000); } };
+  function deliver(o, t, note) {
+    o.track.events.push({ stage: 'delivered', t, note });
+    o.deliveredAt = t; o.escrowEndsAt = t + P.ESCROW_DAYS * DAY;
+  }
+  /** Seeded timeline for demo orders: packed +4h, shipped +18h, out for delivery +40h, delivered +2 days. */
+  function seedTrack(o, now) {
+    o.track = { courier: null, awb: null, events: [{ stage: 'placed', t: o.t, note: o.channel === 'offline_store' ? 'Billed at store counter' : 'Payment received' }] };
+    if (o.channel === 'offline_store') { deliver(o, o.t, 'Handed over at the store'); return; }
+    const steps = [['packed', 4 * HOUR, 'Packed at Pune warehouse'], ['shipped', 18 * HOUR, 'Handed to courier'], ['out_for_delivery', 40 * HOUR, 'Out for delivery'], ['delivered', 48 * HOUR, 'Delivered, signed by customer']];
+    for (const [stage, dt, note] of steps) {
+      const t = o.t + dt; if (t > now) break;
+      if (stage === 'shipped') assignAwb(o);
+      if (stage === 'delivered') deliver(o, t, note); else o.track.events.push({ stage, t, note });
+    }
+  }
+  const memberOf = (d, o) => d.members[o.mi];
+  function placeOrder(d, { mi, items, quote, pay, channel = 'online', storeId = null, id }, now = Date.now()) {
+    if (d.members[mi].status === 'blocked') throw new Error('This account is on hold. Please contact support.');
+    const o = { id: id || 'ORD' + String(now).slice(-7), mi, t: now, items: items.map((x) => ({ pid: x.pid, qty: x.qty })), paid: quote.netPaid, bv: quote.bv,
+      pointsUsed: quote.pointsUsed || 0, cashback: P.round2(quote.cashback != null ? quote.cashback : quote.bv * P.CASHBACK_RATE), pay, status: 'Pending_Escrow', channel, storeId };
+    o.track = { courier: null, awb: null, events: [{ stage: 'placed', t: now, note: channel === 'offline_store' ? 'Billed at store counter' : 'Payment received' }] };
+    if (channel === 'offline_store') deliver(o, now, 'Handed over at the store');
+    d.orders.unshift(o);
+    return o;
+  }
+  function advance(d, o, now = Date.now(), note) {
+    if (o.status !== 'Pending_Escrow') throw new Error(`${o.id} is ${o.status}`);
+    const i = stageIdx(o); if (i >= STAGES.length - 1) throw new Error(`${o.id} is already delivered`);
+    const next = STAGES[i + 1];
+    if (next === 'shipped') assignAwb(o);
+    if (next === 'delivered') deliver(o, now, note || 'Delivered'); else o.track.events.push({ stage: next, t: now, note: note || STAGE_LABEL[next] });
+    return next;
+  }
+  function refundRewards(d, o, now) { const m = memberOf(d, o); const back = o.pointsUsed ? P.reverseRedemption(rewardsOf(d, m), o.id, now) : 0; touch(d, m); return back; }
+  /** Cancel before it ships. */
+  function cancel(d, o, now = Date.now(), reason = 'Cancelled') {
+    if (o.status !== 'Pending_Escrow') throw new Error(`${o.id} is ${o.status}`);
+    if (stageIdx(o) >= STAGES.indexOf('shipped')) throw new Error('Already shipped. It can be returned after delivery.');
+    o.status = 'Cancelled'; o.track.events.push({ stage: 'cancelled', t: now, note: reason });
+    return refundRewards(d, o, now);
+  }
+  /** Return inside the 7-day window after delivery. Nothing was credited yet, so nothing has to be clawed back. */
+  function returnOrder(d, o, now = Date.now(), reason = 'Returned') {
+    if (o.status !== 'Pending_Escrow') throw new Error(`${o.id} is ${o.status}`);
+    if (!o.deliveredAt) throw new Error('Not delivered yet. Cancel it instead, or refuse it at the door.');
+    if (now >= o.escrowEndsAt) throw new Error('The 7-day return window has closed.');
+    o.status = 'Returned'; o.track.events.push({ stage: 'returned', t: now, note: reason });
+    return refundRewards(d, o, now);
+  }
+  /** Release from escrow: credit BV and cashback. Early release needs a reason (it ends the member's return window). */
+  function confirm(d, o, now = Date.now(), reason = '') {
+    if (o.status !== 'Pending_Escrow') throw new Error(`${o.id} is ${o.status}`);
+    if (!o.deliveredAt) throw new Error('Not delivered yet. BV stays in escrow until delivery + 7 days.');
+    if (memberOf(d, o).status === 'blocked') throw new Error('Member is blocked. The BV stays in escrow until the account is unblocked.');
+    const early = now < o.escrowEndsAt;
+    if (early && !String(reason).trim()) throw new Error('The return window is still open. Give a reason to release early.');
+    o.status = 'Confirmed'; o.confirmedAt = now;
+    o.track.events.push({ stage: 'confirmed', t: now, note: early ? `Released early: ${reason}` : 'Return window closed, BV confirmed' });
+    creditOrder(d, o, now);
+    return o;
+  }
+  function creditOrder(d, o, now) {
+    if (o.bvCredited) return;
+    const m = memberOf(d, o);
+    m.bv = m.bv || { lifetime: 0, log: [] };
+    const mk = monthKey(now);
+    if (m.bv.monthKey && m.bv.monthKey !== mk) m.monthBV = 0; // a new month starts from zero
+    m.bv.monthKey = mk;
+    m.bv.lifetime = P.round2(m.bv.lifetime + o.bv); m.monthBV = P.round2((m.monthBV || 0) + o.bv);
+    m.bv.log.unshift({ t: now, ref: o.id, bv: o.bv, note: 'Order confirmed' });
+    o.bvCredited = true;
+    if (!o.cashbackCredited && o.cashback > 0) { P.creditReward(rewardsOf(d, m), 'cashback', o.cashback, now, `5% cashback on ${o.id}`, o.id); o.cashbackCredited = true; }
+    touch(d, m);
+  }
+  /** Scheduled job: confirm every delivered order whose return window has closed. */
+  function settle(d, now = Date.now()) {
+    let n = 0;
+    d.orders.forEach((o) => { if (o.status === 'Pending_Escrow' && o.deliveredAt && now >= o.escrowEndsAt && memberOf(d, o).status !== 'blocked') { confirm(d, o, Math.max(o.escrowEndsAt, o.track.events.at(-1).t)); n++; } });
+    return n;
+  }
+  const monthKey = (t) => new Date(t + 5.5 * HOUR).toISOString().slice(0, 7); // IST calendar month
+  /** Personal order BV of a member. */
+  function orderBV(d, m, now = Date.now()) {
+    const os = d.orders.filter((o) => o.mi === m.idx);
+    const sum = (f) => P.round2(os.filter(f).reduce((a, o) => a + o.bv, 0));
+    const month = m.bv && m.bv.monthKey && m.bv.monthKey !== monthKey(now) ? 0 : P.round2(m.monthBV || 0);
+    return { escrow: sum((o) => o.status === 'Pending_Escrow'), month, lifetime: m.bv ? m.bv.lifetime : 0, orders: os.length, log: m.bv ? m.bv.log : [] };
+  }
+
+  /* ======================================================= network (shared by admin + member view) */
+  const pkgOf = (k) => P.PACKAGES.find((p) => p.key === k);
+  const lastRunAt = (d) => { const r = d.payoutRuns[0]; return r ? r.t : Date.now() - 7 * DAY; };
+  function network(d) {
+    const { members, L, R } = d, n = members.length, since = lastRunAt(d);
+    const sub = new Array(n).fill(0), cnt = new Array(n).fill(0), wsub = new Array(n).fill(0);
+    for (let i = n - 1; i >= 0; i--) { // children always have a higher index than their parent
+      const m = members[i], own = m.status === 'blocked' ? 0 : pkgOf(m.pkg).bv, l = L[i], r = R[i];
+      sub[i] = own + (l != null ? sub[l] : 0) + (r != null ? sub[r] : 0);
+      cnt[i] = 1 + (l != null ? cnt[l] : 0) + (r != null ? cnt[r] : 0);
+      wsub[i] = (m.joined > since ? own : 0) + (l != null ? wsub[l] : 0) + (r != null ? wsub[r] : 0);
+    }
+    const NET = members.map((m, i) => {
+      const lb = L[i] != null ? sub[L[i]] : 0, rb = R[i] != null ? sub[R[i]] : 0;
+      return { left: lb, right: rb, team: cnt[i] - 1, leftCount: L[i] != null ? cnt[L[i]] : 0, rightCount: R[i] != null ? cnt[R[i]] : 0,
+        weekL: L[i] != null ? wsub[L[i]] : 0, weekR: R[i] != null ? wsub[R[i]] : 0, rank: P.rankFor(lb, rb).current, directs: 0 };
+    });
+    members.forEach((m) => { if (m.sponsor != null) NET[m.sponsor].directs++; });
+    return NET;
+  }
+  /** Monthly repurchase BV by sponsor generation, levels 1–6. */
+  function generationBV(d, idx) {
+    const out = []; let level = [idx];
+    for (let g = 0; g < 6; g++) {
+      level = d.members.filter((m) => level.includes(m.sponsor)).map((m) => m.idx);
+      out.push(level.reduce((a, i) => a + (d.members[i].status === 'active' ? d.members[i].monthBV || 0 : 0), 0));
+    }
+    return out;
+  }
+
+  /* ======================================================= load + migrate */
+  function migrate(d, now = Date.now(), fresh = false) {
+    if (d.v === 3) return d;
+    const T = linked(), li = T ? d.members.findIndex((m) => m.id === T.state.member.id) : -1;
+    d.orders.forEach((o) => {
+      if (o.cashback == null) o.cashback = P.round2(o.bv * P.CASHBACK_RATE);
+      if (!o.track) seedTrack(o, now);
+      const done = o.deliveredAt && now >= o.escrowEndsAt;
+      if (fresh && o.status !== 'Returned') o.status = done ? 'Confirmed' : 'Pending_Escrow';
+      if (o.status === 'Returned') o.track.events.push({ stage: 'returned', t: Math.min(now, (o.deliveredAt || o.t) + DAY), note: 'Returned by customer' });
+      if (o.status === 'Confirmed') { o.confirmedAt = Math.min(now, o.escrowEndsAt || now); o.track.events.push({ stage: 'confirmed', t: o.confirmedAt, note: 'Return window closed, BV confirmed' }); }
+    });
+    // seeded history: monthBV is personal BV already confirmed this month; add confirmed orders' BV and cashback on top
+    d.members.forEach((m) => { if (!m.bv) m.bv = { lifetime: m.monthBV || 0, log: [], monthKey: monthKey(now) }; });
+    d.orders.slice().sort((a, b) => (a.confirmedAt || 0) - (b.confirmedAt || 0)).forEach((o) => {
+      if (o.status !== 'Confirmed') return;
+      const m = d.members[o.mi]; m.bv = m.bv || { lifetime: 0, log: [] };
+      m.bv.lifetime = P.round2(m.bv.lifetime + o.bv); m.bv.log.unshift({ t: o.confirmedAt, ref: o.id, bv: o.bv, note: 'Order confirmed' });
+      o.bvCredited = true;
+      if (o.mi !== li) { m.rewards = m.rewards || P.newRewards(); P.creditReward(m.rewards, 'cashback', o.cashback, o.confirmedAt, `5% cashback on ${o.id}`, o.id); }
+      o.cashbackCredited = true;
+    });
+    if (li >= 0) { // storefront orders placed before orders were shared: move them in (their BV and cashback were already credited)
+      const s = T.state, byName = (n) => (root.TS_PRODUCTS.find((p) => p.name === n) || root.TS_PRODUCTS[0]).id;
+      (s.orders || []).slice().reverse().forEach((x) => {
+        if (d.orders.some((o) => o.id === x.id)) return;
+        const o = { id: x.id, mi: li, t: x.t, items: x.items.map((it) => ({ pid: it.pid || byName(it.name), qty: it.qty })), paid: x.paid, bv: x.bv, pointsUsed: 0, cashback: x.cashback || 0, pay: 'UPI', status: x.status === 'Returned' ? 'Returned' : 'Pending_Escrow', channel: 'online', bvCredited: true, cashbackCredited: true };
+        seedTrack(o, now); d.orders.unshift(o);
+      });
+      s.orders = []; T.save();
+    }
+    d.orders.sort((a, b) => b.t - a.t);
+    d.v = 3;
+    return d;
+  }
   function load() {
-    try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && d.v === 2) return d; } catch (e) {}
-    const d = generate(); persist(d); return d;
+    let d = null;
+    try { d = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
+    if (d && (d.v === 2 || d.v === 3)) return migrate(d);
+    d = migrate(generate(), Date.now(), true); persist(d); return d;
   }
   function persist(d) { try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) {} }
+  function boot(d) { syncLinked(d); settle(d); persist(d); return d; }
 
-  let db = load();
-  window.AdminDB = {
+  let db = boot(load());
+  // another tab (shop, dashboard) changed the data: reload in memory only, never write back (no ping-pong)
+  if (root.addEventListener) root.addEventListener('storage', (e) => { if (e.key === KEY || e.key === 'trueshop-demo-v1') { const x = load(); syncLinked(x); db = x; } });
+  root.AdminDB = {
     get db() { return db; },
     save() { persist(db); },
-    reset() { db = generate(); persist(db); },
+    reset() { db = boot(migrate(generate(), Date.now(), true)); },
     log(msg) { db.audit.unshift({ t: Date.now(), msg }); persist(db); },
-    DAY,
+    DAY, STAGES, STAGE_LABEL,
+    generate, migrate, seedTrack, placeOrder, advance, cancel, returnOrder, confirm, settle, stageOf, stageIdx, escrowLeft, orderBV: (m, now) => orderBV(db, m, now), monthKey,
+    network, generationBV, lastRunAt, pkgOf,
+    linkedIdx: () => linkedIdx(db), isLinked: (m) => isLinked(db, m), rewardsOf: (m) => rewardsOf(db, m), wallets: (m, now) => wallets(db, m, now),
+    creditWallet: (m, gross, type, note) => creditWallet(db, m, gross, type, note), setKyc: (m, st) => setKyc(db, m, st), touch: (m) => touch(db, m),
   };
-})();
+})(typeof window !== 'undefined' ? window : globalThis);

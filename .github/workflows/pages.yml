@@ -26,6 +26,8 @@ jobs:
         run: |
           node tests/plan.test.js
           node tests/clinic.test.js
+          node tests/orders.test.js
+          node tests/rewards.test.js
       - name: Assemble site
         run: |
           mkdir _site

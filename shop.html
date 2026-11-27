@@ -57,7 +57,7 @@
       <div class="products" id="products"></div>
 
       <h2 style="margin-top:48px" id="orders-h">My orders</h2>
-      <p class="muted small">BV stays in <b>Pending_Escrow</b> for 7 days after delivery. A return inside the window reverses the BV and any commission before payout closing.</p>
+      <p class="muted small">BV stays in <b>Pending_Escrow</b> until 7 days after delivery. You can cancel until the order ships and return it inside the 7-day window. BV and the 5% cashback are credited only once the window closes.</p>
       <div class="card" id="orders"></div>
     </div>
 
@@ -73,10 +73,14 @@
 <script src="assets/js/plan.js"></script>
 <script src="assets/js/app.js"></script>
 <script src="assets/js/products.js"></script>
+<script src="assets/js/admin-data.js"></script>
 <script>
 (function () {
-  const P = TrueShopPlan, S = () => TS.state;
+  const P = TrueShopPlan, S = () => TS.state, A = AdminDB;
   const products = window.TS_PRODUCTS;
+  const viewId = TS.viewAs(); // admin "view as": show that member's orders, read-only
+  const me = () => A.db.members.find((m) => m.id === (viewId || S().member.id));
+  if (viewId) document.getElementById('cartItems').innerHTML = '<p class="muted small">Read-only admin view. The cart and checkout are turned off.</p>';
   let filter = 'all';
 
   filters.innerHTML = [['all', 'All products']].concat(Object.entries(P.CATEGORIES).map(([k, c]) => [k, `${c.icon} ${c.label.split(' ')[0]} · ${P.pct(c.bvRatio)} BV`]))
@@ -100,6 +104,7 @@
   const products_el = () => document.getElementById('products');
   products_el().addEventListener('click', (e) => {
     const b = e.target.closest('[data-add]'); if (!b) return;
+    if (viewId) { TS.toast('Read-only admin view'); return; }
     const p = products.find((x) => x.id === b.dataset.add);
     const line = S().cart.find((i) => i.id === p.id);
     line ? line.qty++ : S().cart.push({ id: p.id, name: p.name, emoji: p.emoji, mrp: p.mrp, dp: p.dp, category: p.category, qty: 1 });
@@ -112,6 +117,7 @@
 
   let pointsWanted = null;
   function renderCart() {
+    if (viewId) return;
     const cart = S().cart;
     if (!cart.length) {
       cartItems.innerHTML = '<p class="muted small">Your cart is empty. Add products to see BV, savings and cashback update live.</p>';
@@ -120,7 +126,7 @@
     cartItems.innerHTML = cart.map((i, idx) => `<div class="cart-item"><span class="e">${i.emoji}</span>
       <div><div class="small" style="font-weight:600;line-height:1.3">${TS.esc(i.name)}</div><div class="tiny muted">${P.inr(i.dp)} · ${P.num(P.productBV(i.dp, i.category))} BV each</div></div>
       <div class="qty"><button data-q="${idx}" data-d="-1">−</button><span>${i.qty}</span><button data-q="${idx}" data-d="1">+</button></div></div>`).join('');
-    const avail = S().wallets.points + Math.floor(S().wallets.cashback);
+    const rw = TS.rewards(), avail = rw.points + Math.floor(rw.cashback);
     const q = P.priceCart(cart, avail, pointsWanted ?? avail);
     cartSummary.innerHTML = `
       <div class="row"><span>MRP total</span><span class="num"><s>${P.inr(q.mrp)}</s></span></div>
@@ -129,10 +135,11 @@
       <div style="padding:10px 0;border-top:1px dashed var(--line)">
         <div class="row" style="padding:0"><span class="small">Redeem TruePoints + cashback <span class="tiny muted">(${P.num(avail)} available, max 10% = ${P.num(q.maxPoints)})</span></span><b>−${P.inr(q.discount)}</b></div>
         <input type="range" id="pts" min="0" max="${Math.min(avail, q.maxPoints)}" value="${q.pointsUsed}">
+        <div class="tiny muted">${rw.next ? `${P.inr(rw.next.amount, 2)} of your rewards lapses on ${new Date(rw.next.t).toLocaleDateString('en-IN')}. ` : ''}Redeeming any amount carries the rest forward ${P.REWARDS.validityDays} days.</div>
       </div>
       <div class="row"><span><b>You pay</b></span><b style="font-size:1.3rem">${P.inr(q.netPaid)}</b></div>
       <div class="row"><span>BV earned <span class="tiny muted">(on net paid)</span></span><b><span class="chip">${P.num(q.bv)} BV</span></b></div>
-      <div class="row"><span>Smart Shopper cashback (5%)</span><b>${P.inr(q.cashback, 2)}</b></div>
+      <div class="row"><span>Smart Shopper cashback (5%) <span class="tiny muted">after escrow</span></span><b>${P.inr(q.cashback, 2)}</b></div>
       <button class="btn btn-gold" style="width:100%;margin-top:12px" id="checkout">Place order</button>
       <p class="tiny muted" style="margin:8px 0 0">0 BV is generated on the TruePoints/cashback portion (zero-leakage rule).</p>`;
     cartFab.classList.add('has');
@@ -156,40 +163,63 @@
       <div class="row"><span>BV to escrow</span><b>${P.num(q.bv)} BV</b></div>
       <button class="btn btn-gold" id="pay" style="width:100%;margin-top:14px">Pay ${P.inr(q.netPaid)}</button>`, (body, close) => {
       TS.$('#pay', body).onclick = () => {
-        const s = S();
-        // Spend TruePoints first, then cashback
-        let use = q.pointsUsed; const fromPts = Math.min(use, s.wallets.points);
-        s.wallets.points -= fromPts; s.wallets.cashback = P.round2(s.wallets.cashback - (use - fromPts));
-        s.wallets.cashback = P.round2(s.wallets.cashback + q.cashback);
-        s.orders.unshift({ id: 'ORD' + Date.now().toString().slice(-7), t: Date.now(), items: s.cart.map((i) => ({ name: i.name, qty: i.qty, emoji: i.emoji })), paid: q.netPaid, bv: q.bv, cashback: q.cashback, status: 'Pending_Escrow' });
-        s.binary.pendingLeft += Math.round(q.bv); // self-purchase BV flows to the placement leg in the demo
+        const s = S(), now = Date.now(), m = me(), id = 'ORD' + String(now).slice(-7);
+        if (!m) { TS.toast('Member account not found'); return; }
+        try {
+          if (q.pointsUsed) P.redeemRewards(s.rewards, q.pointsUsed, now, `Redeemed on ${id}`, id); // TruePoints first, then cashback
+          A.placeOrder(A.db, { id, mi: m.idx, items: s.cart.map((i) => ({ pid: i.id, qty: i.qty })), quote: q, pay: body.querySelector('select').value }, now);
+        } catch (x) { TS.toast('⚠️ ' + TS.esc(x.message)); return; }
+        A.log(`Online order ${id} by ${m.id}: ${P.inr(q.netPaid)}, ${P.num(q.bv)} BV to escrow`);
         s.cart = []; pointsWanted = null; TS.save(); close();
         renderCart(); renderOrders();
-        TS.toast(`✅ Order placed! <b>${P.num(q.bv)} BV</b> is in escrow and ${P.inr(q.cashback, 2)} cashback was credited.`, 4000);
+        TS.toast(`✅ Order placed! <b>${P.num(q.bv)} BV</b> is in escrow. It counts, with ${P.inr(q.cashback, 2)} cashback, 7 days after delivery.`, 4500);
       };
     });
   }
 
+  const STEPS4 = A.STAGES;
+  function stepper(o) {
+    const i = A.stageIdx(o), stop = o.status === 'Cancelled' || o.status === 'Returned';
+    return `<div class="track ${stop ? 'stop' : ''}">${STEPS4.map((st, k) => `<div class="st ${k <= i ? 'done' : ''} ${k === i && !stop ? 'now' : ''}">${A.STAGE_LABEL[st]}</div>`).join('')}</div>`;
+  }
+  function statusChip(o) {
+    const left = A.escrowLeft(o);
+    if (o.status === 'Returned') return '<span class="chip chip-red">Returned · no BV</span>';
+    if (o.status === 'Cancelled') return '<span class="chip chip-grey">Cancelled</span>';
+    if (o.status === 'Confirmed') return '<span class="chip">Confirmed · BV credited</span>';
+    if (left == null) return `<span class="chip chip-blue">${A.STAGE_LABEL[A.stageOf(o)]}</span>`;
+    return `<span class="chip chip-warn">Pending_Escrow · ${Math.ceil(left / TS.DAY)}d to return</span>`;
+  }
   function renderOrders() {
-    const os = S().orders;
-    orders.innerHTML = os.length ? os.map((o, i) => {
-      const ageDays = (Date.now() - o.t) / TS.DAY;
-      const left = Math.max(0, P.ESCROW_DAYS - ageDays);
-      const st = o.status === 'Returned' ? '<span class="chip chip-red">Returned · BV reversed</span>'
-        : left > 0 ? `<span class="chip chip-warn">Pending_Escrow · ${Math.ceil(left)}d left</span>` : '<span class="chip">Confirmed</span>';
-      return `<div class="order"><div><b>${o.id}</b> ${st}<div class="small muted">${o.items.map((x) => `${x.emoji} ${TS.esc(x.name)} ×${x.qty}`).join(', ')}</div>
-        <div class="tiny muted">${new Date(o.t).toLocaleString('en-IN')} · Paid ${P.inr(o.paid)} · ${P.num(o.bv)} BV</div></div>
-        <div>${o.status !== 'Returned' && left > 0 ? `<button class="btn btn-ghost btn-sm" data-ret="${i}">Return</button>` : ''}</div></div>`;
+    const m = me(), os = m ? A.db.orders.filter((o) => o.mi === m.idx) : [];
+    orders.innerHTML = os.length ? os.map((o) => {
+      const stg = A.stageIdx(o), open = o.status === 'Pending_Escrow';
+      const act = viewId || !open ? '' : stg < A.STAGES.indexOf('shipped') ? `<button class="btn btn-ghost btn-sm" data-cancel="${o.id}">Cancel</button>`
+        : o.deliveredAt ? `<button class="btn btn-ghost btn-sm" data-ret="${o.id}">Return</button>` : '';
+      return `<div class="order"><div><b>${o.id}</b> ${statusChip(o)}${o.channel === 'offline_store' ? ' <span class="chip chip-blue">store</span>' : ''}
+        <div class="small muted">${o.items.map((x) => { const p = products.find((y) => y.id === x.pid) || { emoji: '📦', name: x.pid }; return `${p.emoji} ${TS.esc(p.name)} ×${x.qty}`; }).join(', ')}</div>
+        <div class="tiny muted">${new Date(o.t).toLocaleString('en-IN')} · Paid ${P.inr(o.paid)}${o.pointsUsed ? ` (+${P.num(o.pointsUsed)} rewards)` : ''} · ${P.num(o.bv)} BV</div>
+        ${o.status === 'Cancelled' ? '' : stepper(o)}</div>
+        <div class="acts" style="flex-direction:column;align-items:flex-end"><button class="btn btn-ghost btn-sm" data-track="${o.id}">Track</button>${act}</div></div>`;
     }).join('') : '<p class="muted small" style="margin:0">No orders yet.</p>';
   }
+  function trackModal(o) {
+    TS.modal(`Track ${o.id}`, `
+      ${statusChip(o)} ${o.track.awb ? `<span class="small">· ${TS.esc(o.track.courier)} AWB <b>${o.track.awb}</b></span>` : ''}
+      ${o.status === 'Cancelled' ? '' : stepper(o)}
+      <div class="timeline-log" style="margin-top:10px">${o.track.events.slice().reverse().map((e) => `<div><time>${new Date(e.t).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</time><span><b>${TS.esc(A.STAGE_LABEL[e.stage] || e.stage.replace(/_/g, ' '))}</b> · ${TS.esc(e.note || '')}</span></div>`).join('')}</div>
+      ${o.deliveredAt && o.status === 'Pending_Escrow' ? `<p class="small">Return window closes <b>${new Date(o.escrowEndsAt).toLocaleString('en-IN')}</b>. ${P.num(o.bv)} BV and ${P.inr(o.cashback, 2)} cashback are credited then.</p>` : ''}`);
+  }
   orders.addEventListener('click', (e) => {
-    const b = e.target.closest('[data-ret]'); if (!b) return;
-    const s = S(), o = s.orders[+b.dataset.ret];
-    o.status = 'Returned';
-    s.binary.pendingLeft = Math.max(0, s.binary.pendingLeft - Math.round(o.bv));
-    s.wallets.cashback = Math.max(0, P.round2(s.wallets.cashback - o.cashback));
-    TS.save(); renderOrders();
-    TS.toast(`↩️ ${o.id} returned. ${P.num(o.bv)} BV and ${P.inr(o.cashback, 2)} cashback reversed.`);
+    const b = e.target.closest('button'); if (!b) return;
+    const o = A.db.orders.find((x) => x.id === (b.dataset.track || b.dataset.cancel || b.dataset.ret)); if (!o) return;
+    if (b.dataset.track) { trackModal(o); return; }
+    if (viewId) return;
+    try {
+      const back = b.dataset.cancel ? A.cancel(A.db, o, Date.now(), 'Cancelled by customer') : A.returnOrder(A.db, o, Date.now(), 'Return requested by customer');
+      A.log(`${o.id} ${o.status.toLowerCase()} by member ${me().id}`); A.save(); TS.save(); renderOrders(); renderCart();
+      TS.toast(`↩️ ${o.id} ${o.status.toLowerCase()}. ${P.num(o.bv)} BV will not be credited${back ? `, ${P.inr(back, 2)} rewards restored` : ''}.`, 4000);
+    } catch (x) { TS.toast('⚠️ ' + TS.esc(x.message)); }
   });
 
   renderProducts(); renderCart(); renderOrders();

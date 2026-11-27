@@ -258,3 +258,22 @@ footer.site .legal { border-top: 1px solid rgba(255,255,255,.1); margin-top: 28p
   .node.me { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(245,200,66,.3); }
   .node.empty { border-style: dashed; color: var(--ink-3); background: transparent; }
   .node.inactive .av { background: #94a3b8 !important; }
+
+/* admin "view as member" banner */
+.viewas-bar { background: var(--gold); color: var(--green-900); font-size: .88rem; position: sticky; top: 64px; z-index: 40; }
+.viewas-bar .container { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding-top: 8px; padding-bottom: 8px; }
+.viewas-bar .btn { background: var(--green-900); color: #fff; }
+.viewas-bar .btn:hover { background: var(--green-800, #1b4332); }
+.timeline-log { font-size: .85rem; }
+.timeline-log div { padding: 8px 0; border-bottom: 1px dashed var(--line); display: flex; gap: 10px; }
+.timeline-log time { color: var(--ink-3); white-space: nowrap; font-size: .78rem; min-width: 120px; }
+/* order tracking stepper */
+.track { display: flex; gap: 0; margin: 10px 0 4px; }
+.track .st { flex: 1; text-align: center; position: relative; font-size: .7rem; color: var(--ink-3); }
+.track .st::before { content: ''; display: block; width: 14px; height: 14px; border-radius: 50%; margin: 0 auto 4px; background: var(--line); position: relative; z-index: 1; }
+.track .st::after { content: ''; position: absolute; top: 6px; left: -50%; width: 100%; height: 2px; background: var(--line); }
+.track .st:first-child::after { display: none; }
+.track .st.done { color: var(--ink); }
+.track .st.done::before, .track .st.done::after { background: var(--green-500); }
+.track .st.now::before { box-shadow: 0 0 0 4px rgba(64,145,108,.25); }
+.track.stop .st.done::before, .track.stop .st.done::after { background: var(--ink-3); }

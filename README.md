@@ -19,8 +19,8 @@ The demo is built from three source documents in this repo:
 | **Home** (`index.html`) | Hero, animated plan highlights, live weekly binary estimator, rank journey, TrueSteps ring |
 | **Business Plan** (`plan.html`) | Full plan: category BV, brochure vs effective payout per stream, binary/generation/leadership explainers, ranks, wallet maths |
 | **Stores & Doctors** (`clinics.html`) | Find a franchise store (sorted by distance with “near me”), browse verified doctors by city, speciality and date, book a slot (self or family member, DPDP consent, 10-minute payment hold), pay, cancel with refund, reschedule, and view your prescription |
-| **Shop** (`shop.html`) | Browse 14 products, add to cart, redeem TruePoints (≤10% of bill), see BV on net paid and 5% cashback, place orders into 7-day escrow, return orders to reverse BV |
-| **My Dashboard** (`dashboard.html`) | Wallets, run a weekly binary closing (caps, carry-forward, 90/10 split), rank-up celebration, genealogy tree, generation income, TrueSteps sync/claim, KYC-gated withdrawal |
+| **Shop** (`shop.html`) | Browse 14 products, add to cart, redeem TruePoints + cashback (≤10% of bill), see BV on net paid and 5% cashback, place orders, **track them** (placed → packed → shipped → out for delivery → delivered, courier + AWB), cancel before shipping, return inside the 7-day window after delivery |
+| **My Dashboard** (`dashboard.html`) | Wallets, **My BV** (in escrow / confirmed this month / lifetime), rewards validity per credit, run a weekly binary closing (caps, carry-forward, 90/10 split), rank-up celebration, genealogy tree, generation income, TrueSteps sync/claim, KYC-gated withdrawal |
 | **Simulator** (`simulator.html`) | Company model mirroring the XLSX, with a 70% cap gauge and a 12-month projection; personal monthly earnings calculator |
 | **Admin Panel** (`admin.html`) | Back-office for the company (see below) |
 | **Compliance** (`compliance.html`) | Direct Selling Rules 2021 safeguards, payout lifecycle, wallet rules, earnings disclosure |
@@ -32,10 +32,10 @@ Open `admin.html` (linked in the site footer). The demo credentials are pre-fill
 | Module | What it does |
 |---|---|
 | Dashboard | KPIs, 30-day joinings chart, package mix, KYC status, commissions by stream, top earners, recent joinings and activity |
-| Members / Add Member | Search, filter, sort, paginate and export CSV; profile modal with block/unblock; register under a sponsor with extreme-leg spillover placement preview |
+| Members / Add Member | Search, filter, sort, paginate and export CSV; own BV (month · escrow) per member; profile with personal BV, rewards and next lapse, block/unblock and **View as member**; register under a sponsor with extreme-leg spillover placement preview |
 | Genealogy Tree | 4-level binary tree browser with drill-down, up-one-level and search |
 | KYC Approvals | PAN / Aadhaar / bank queue with approve and reject-with-reason |
-| Orders & Escrow | Release from the 7-day escrow or return (BV reversal) |
+| Orders & Escrow | Tabs for in transit, return window, confirmed, returned/cancelled; search by order, member or AWB; advance each order (pack → ship → out for delivery → delivered) with a tracking timeline; cancel before shipping; return inside the window; release (early release needs a reason) |
 | Products & BV | Edit MRP/DP within each category's discount band; storefront updates immediately |
 | Weekly Payout Run | Per-member 1:1 binary with carry-forward and package caps, direct referral, a **pro-rata ceiling** that holds binary inside its 20% share of cycle BV, then release to wallets (90/10) |
 | Withdrawals | Approve (KYC-verified only) or reject, with 5% TDS + 5% admin shown |
@@ -68,6 +68,18 @@ Consultations always generate **0 BV and 0 commission**, and a doctor's member c
 
 All demo data is stored in your browser's `localStorage`. Use **Reset demo data** in the footer to start again.
 
+### Orders, BV and rewards
+
+The storefront demo user **TS10248** is the same member the admin sees. Orders, personal BV, cashback/TruePoints, wallet credits from payout and CTO runs, and KYC are shared between the Shop, My Dashboard and the admin panel.
+
+- **Escrow.** An order's BV is held from checkout until **7 days after delivery**. It is then confirmed automatically, and only at that point is its BV credited to the member's personal BV and its 5% cashback credited to the rewards wallet. Cancelled (before shipping) and returned orders never credit anything. Blocked members cannot order, and their escrow is held until they are unblocked.
+- **Rewards validity (cashback + TruePoints).** Each credit lapses **60 days** after it is credited. If the member redeems rewards even once, everything left is carried forward 60 days from that redemption. A redemption on an order that is later cancelled or returned is given back to the original credits and no longer counts as a use. The rule lives in `assets/js/plan.js` (`REWARDS`, `lotExpiry`).
+- **View as member.** In **Members** (or a member's profile) press **👁 View as** to open My Dashboard and My orders exactly as that member sees them, read-only, with a banner to exit. It needs the admin session and the `mlm.manage` permission, and starting and stopping are written to the audit log.
+
+## Loophole report
+
+`LOOPHOLES.md` lists every loophole found, with evidence, severity and the suggested fix, and what this version already closes. `tests/loophole-probe.js` re-checks them in a headless browser (needs Playwright; see the report).
+
 ## Run locally
 
 It's a static site with no build step:
@@ -95,12 +107,15 @@ assets/
   js/dashboard.js      member dashboard logic
   js/simulator.js      simulators
   js/admin.js          admin panel (hash-routed modules)
-  js/admin-data.js     seeded 180-member demo network for the admin
+  js/admin-data.js     seeded 180-member network, shared order flow (tracking, escrow, BV + cashback credit), link to the storefront member
   js/clinic-data.js    stores, clinics, doctors, slots, bookings, refunds, roles and scopes (pure logic + seed)
   js/admin-clinics.js  admin modules for stores, POS, clinics, appointments, reports and staff
   css/admin.css        admin layout
 tests/plan.test.js     engine checks against the figures in the plan documents
 tests/clinic.test.js   slots, double booking, holds, refunds, zero BV on consultations, role scope isolation
+tests/orders.test.js   order tracking, escrow from delivery, BV/cashback only on confirmation, shared storefront account
+tests/rewards.test.js  60-day validity, carry-forward on use, cancel restores without refreshing the clock
+tests/loophole-probe.js  browser probe for LOOPHOLES.md (manual, needs Playwright)
 ```
 
 ## Tests
@@ -108,6 +123,8 @@ tests/clinic.test.js   slots, double booking, holds, refunds, zero BV on consult
 ```bash
 node tests/plan.test.js
 node tests/clinic.test.js
+node tests/orders.test.js
+node tests/rewards.test.js
 ```
 
 ## Disclaimer

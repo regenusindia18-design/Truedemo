@@ -14,7 +14,8 @@
       member: { id: 'TS10248', name: 'Aarav Deshmukh', package: 'pro', kyc: { pan: true, aadhaar: true, bank: false }, joined: Date.now() - 120 * DAY },
       cart: [],
       orders: [],
-      wallets: { payout: 18450, repurchase: 2050, cashback: 312, points: 140 },
+      wallets: { payout: 18450, repurchase: 2050 },
+      rewards: seedRewards(),
       ledger: [
         { t: Date.now() - 6 * DAY, type: 'Binary', note: 'Week 46 closing · 9,500 BV matched', amount: 3800 },
         { t: Date.now() - 9 * DAY, type: 'Direct', note: 'Referral booster · Priya K. first order', amount: 250 },
@@ -24,13 +25,50 @@
       steps: { today: 3260, history: [8200, 10450, 6100, 12030, 5400, 9800] , lastSync: null },
     };
   }
+  // Cashback + TruePoints are kept as dated lots (see TrueShopPlan rewards engine)
+  function seedRewards() {
+    const r = P.newRewards(), now = Date.now();
+    P.creditReward(r, 'points', 40, now - 56 * DAY, 'TrueSteps: 20,000 steps');
+    P.creditReward(r, 'cashback', 180, now - 52 * DAY, '5% cashback on ORD8841207');
+    P.creditReward(r, 'points', 100, now - 9 * DAY, 'TrueSteps: 50,000 steps');
+    P.creditReward(r, 'cashback', 132, now - 12 * DAY, '5% cashback on ORD8842391');
+    return r;
+  }
+  function migrate(s) {
+    if (!s.rewards) { // older saves held plain balances: keep them as fresh lots
+      s.rewards = P.newRewards();
+      P.creditReward(s.rewards, 'points', s.wallets.points || 0, Date.now(), 'Balance carried over');
+      P.creditReward(s.rewards, 'cashback', s.wallets.cashback || 0, Date.now(), 'Balance carried over');
+      delete s.wallets.points; delete s.wallets.cashback;
+    }
+    if (s.steps.claimedOn == null && s.steps.claimedToday) s.steps.claimedOn = new Date().toDateString();
+    delete s.steps.claimedToday;
+    return s;
+  }
   function load() {
-    try { const s = JSON.parse(localStorage.getItem(STORE_KEY)); if (s && s.member) return s; } catch (e) {}
+    try { const s = JSON.parse(localStorage.getItem(STORE_KEY)); if (s && s.member) return migrate(s); } catch (e) {}
     return defaultState();
   }
   let state = load();
+  P.sweepRewards(state.rewards); // lapse anything past its validity
+  window.addEventListener('storage', (e) => { if (e.key === STORE_KEY) state = load(); });
   function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {} updateCartBadge(); }
-  function reset() { state = defaultState(); save(); }
+  const rewards = () => { P.sweepRewards(state.rewards); return P.rewardSummary(state.rewards); };
+
+  /* ------------------------------------------------------------ admin "view as member"
+   * Set only from the admin panel (after its permission check) and only
+   * honoured inside a signed-in admin browser session. Read-only. */
+  const VIEW_KEY = 'trueshop-view-member';
+  function viewAs() {
+    try {
+      const id = sessionStorage.getItem(VIEW_KEY);
+      if (!id) return null;
+      if (sessionStorage.getItem('trueshop-admin-session') !== '1') { sessionStorage.removeItem(VIEW_KEY); return null; }
+      return id;
+    } catch (e) { return null; }
+  }
+  function setViewAs(id) { try { id ? sessionStorage.setItem(VIEW_KEY, id) : sessionStorage.removeItem(VIEW_KEY); } catch (e) {} }
+  function reset() { state = defaultState(); save(); try { localStorage.removeItem('trueshop-admin-v1'); } catch (e) {} } // admin data holds this member's orders too
 
   /* ------------------------------------------------------------ helpers */
   const $ = (s, el = document) => el.querySelector(s);
@@ -120,6 +158,12 @@
   document.addEventListener('DOMContentLoaded', () => {
     if (document.body.classList.contains('admin')) return; // admin panel has its own chrome
     document.body.insertAdjacentHTML('afterbegin', header());
+    const va = viewAs();
+    if (va) {
+      const m = window.AdminDB && AdminDB.db.members.find((x) => x.id === va);
+      $('.topbar').insertAdjacentHTML('afterend', `<div class="viewas-bar"><div class="container"><span>👁 Admin view as <b>${esc(m ? m.name : va)}</b> (${esc(va)}) · read-only. My Dashboard and My orders show this member.</span><button class="btn btn-sm" id="exitViewAs">Exit view as</button></div></div>`);
+      $('#exitViewAs').onclick = () => { if (window.AdminDB) AdminDB.log(`Stopped viewing as member ${va}`); setViewAs(null); location.href = 'admin.html#members'; };
+    }
     document.body.insertAdjacentHTML('beforeend', footer());
     $('.menu-btn').onclick = () => $('.nav').classList.toggle('open');
     $('#resetDemo').onclick = (e) => { e.preventDefault(); reset(); toast('Demo data reset'); setTimeout(() => location.reload(), 600); };
@@ -129,5 +173,6 @@
 
   window.TS = {
     get state() { return state; }, save, reset, $, $$, esc, toast, modal, animateCount, initReveal, updateCartBadge, DAY,
+    rewards, viewAs, setViewAs,
   };
 })();

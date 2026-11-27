@@ -204,7 +204,7 @@
           const sale = { id: 'POS' + Date.now().toString().slice(-7), storeId: sid, t: Date.now(), items: lines.map((l) => ({ pid: l.pid, qty: l.qty, price: l.p.dp })), total, bv: credit ? bv : 0, pay: $('#pm').value, memberCode: credit ? member.id : null, memberName: credit ? member.name : null, by: me().name };
           d.sales.unshift(sale);
           if (credit) { // same order + escrow + commission path as online orders
-            A.db.orders.unshift({ id: sale.id, mi: member.idx, t: sale.t, items: sale.items.map((x) => ({ pid: x.pid, qty: x.qty })), pay: sale.pay, paid: total, pointsUsed: 0, bv, status: 'Pending_Escrow', channel: 'offline_store', storeId: sid });
+            A.placeOrder(A.db, { id: sale.id, mi: member.idx, items: sale.items, quote: { netPaid: total, bv, pointsUsed: 0 }, pay: sale.pay, channel: 'offline_store', storeId: sid }, sale.t);
             A.save();
           }
           save(); log(`POS sale ${sale.id} at ${C.byId(d.stores, sid).code}: ${inr(total)}${credit ? `, ${P.num(bv)} BV to ${member.id} (escrow)` : ', walk-in'}`);

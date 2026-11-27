@@ -27,7 +27,7 @@
 
   /* 2. BV distribution — headline vs actual outflow (share of TOTAL BV) */
   const INCOME_STREAMS = [
-    { key: 'cashback',   name: 'Smart Shopper Cashback',   phase: 'Self Purchase',  headline: '5% BV',            actual: 0.05, base: 'total',      rule: 'Credited to Cashback Wallet (45-day validity, 0 BV on use)' },
+    { key: 'cashback',   name: 'Smart Shopper Cashback',   phase: 'Self Purchase',  headline: '5% BV',            actual: 0.05, base: 'total',      rule: 'Credited to Cashback Wallet after the 7-day escrow (60-day validity, carried forward once used, 0 BV on use)' },
     { key: 'direct',     name: 'Direct Referral Booster',  phase: 'First Purchase', headline: '10% BV',           actual: 0.10, base: 'first',      rule: 'Instant direct sponsor commission on first order BV' },
     { key: 'binary',     name: 'Flash Binary Matching',    phase: 'First Purchase', headline: '40% Matching BV',  actual: 0.20, base: 'first',      rule: '1:1 pair matching (1000L:1000R = ₹400); power-leg carry forward' },
     { key: 'generation', name: 'Repurchase Generation',    phase: 'Monthly Repeat', headline: '20% BV',           actual: 0.20, base: 'repurchase', rule: '6 levels: L1 7%, L2 4%, L3 3%, L4 2%, L5 2%, L6 2%' },
@@ -64,8 +64,18 @@
   const DEDUCTIONS = { tds: 0.05, admin: 0.05 };
 
   /* TrueSteps / TruePoints (BRD §3) */
-  const STEPS = { stepsPerBlock: 5000, pointsPerBlock: 10, rupeePerPoint: 1, maxCartShare: 0.10, expiryDays: 45 };
+  const STEPS = { stepsPerBlock: 5000, pointsPerBlock: 10, rupeePerPoint: 1, maxCartShare: 0.10, expiryDays: 60 };
   const ESCROW_DAYS = 7;
+  const DAY_MS = 86400000;
+
+  /* Rewards (cashback + TruePoints) validity.
+   * Every credit is a "lot". A lot lapses VALIDITY days after it was credited,
+   * unless the member has used rewards since: any redemption carries every
+   * remaining lot forward, so a lot lapses VALIDITY days after the later of
+   * (its credit date, the member's last redemption). A cancelled or returned
+   * order gives the rewards back to their original lots and no longer counts
+   * as a use, so an order cannot be used to refresh the clock. */
+  const REWARDS = { validityDays: 60, kinds: ['points', 'cashback'] };
   const BUYBACK_DAYS = 30;
 
   /* 3. Ranks */
@@ -218,6 +228,82 @@
     return Math.floor(steps / STEPS.stepsPerBlock) * STEPS.pointsPerBlock;
   }
 
+
+  /* -------------------------------------------------------------- rewards */
+  const newRewards = () => ({ lots: [], uses: [], log: [] });
+  const lastUseAt = (acct) => acct.uses.reduce((a, u) => (u.reversed ? a : Math.max(a, u.t)), 0) || null;
+  function lotExpiry(lot, lastUsedAt) { return Math.max(lot.t, lastUsedAt || 0) + REWARDS.validityDays * DAY_MS; }
+
+  /** Lapse every lot whose validity has run out by `now`. Returns lapsed amounts by kind. */
+  function sweepRewards(acct, now = Date.now()) {
+    const last = lastUseAt(acct), out = { points: 0, cashback: 0 };
+    acct.lots.forEach((l) => {
+      if (l.remaining <= 0) return;
+      const exp = lotExpiry(l, last);
+      if (now < exp) return;
+      out[l.kind] = round2(out[l.kind] + l.remaining);
+      acct.log.unshift({ t: exp, type: 'lapsed', kind: l.kind, amount: l.remaining, note: `Lapsed: unused for ${REWARDS.validityDays} days (${l.note})` });
+      l.remaining = 0; l.lapsedAt = exp;
+    });
+    return out;
+  }
+  function creditReward(acct, kind, amount, now = Date.now(), note = '', ref = null) {
+    amount = round2(amount);
+    if (!(amount > 0) || !REWARDS.kinds.includes(kind)) return null;
+    sweepRewards(acct, now);
+    const lot = { id: 'L' + now.toString(36) + acct.lots.length, kind, amount, remaining: amount, t: now, note, ref };
+    acct.lots.push(lot);
+    acct.log.unshift({ t: now, type: 'credit', kind, amount, note, ref });
+    return lot;
+  }
+  function rewardBalance(acct, now = Date.now()) {
+    const last = lastUseAt(acct), b = { points: 0, cashback: 0 };
+    acct.lots.forEach((l) => { if (l.remaining > 0 && now < lotExpiry(l, last)) b[l.kind] = round2(b[l.kind] + l.remaining); });
+    return b;
+  }
+  /**
+   * Redeem `amount` (₹, 1 point = ₹1) from rewards: points first, then
+   * cashback, oldest lot first. Any redemption counts as a use and carries
+   * all remaining lots forward.
+   */
+  function redeemRewards(acct, amount, now = Date.now(), note = '', ref = null) {
+    amount = round2(amount);
+    if (!(amount > 0)) return null;
+    sweepRewards(acct, now);
+    const bal = rewardBalance(acct, now);
+    if (amount > round2(bal.points + bal.cashback) + 1e-9) throw new Error('Not enough rewards balance');
+    const lots = acct.lots.filter((l) => l.remaining > 0).sort((a, b) => REWARDS.kinds.indexOf(a.kind) - REWARDS.kinds.indexOf(b.kind) || a.t - b.t);
+    const alloc = []; let left = amount;
+    for (const l of lots) {
+      if (left <= 0) break;
+      const take = round2(Math.min(l.remaining, left));
+      l.remaining = round2(l.remaining - take); left = round2(left - take);
+      alloc.push({ lot: l.id, kind: l.kind, amount: take });
+    }
+    const use = { id: 'U' + now.toString(36) + acct.uses.length, t: now, amount, alloc, note, ref, reversed: false };
+    acct.uses.push(use);
+    acct.log.unshift({ t: now, type: 'used', kind: alloc.map((a) => a.kind).filter((k, i, a) => a.indexOf(k) === i).join('+'), amount, note, ref });
+    return use;
+  }
+  /** Give back a redemption (order cancelled or returned). It stops counting as a use. */
+  function reverseRedemption(acct, ref, now = Date.now()) {
+    const use = acct.uses.find((u) => u.ref === ref && !u.reversed);
+    if (!use) return 0;
+    use.reversed = true;
+    let back = 0;
+    use.alloc.forEach((a) => { const l = acct.lots.find((x) => x.id === a.lot); if (l && !l.lapsedAt) { l.remaining = round2(l.remaining + a.amount); back = round2(back + a.amount); } });
+    acct.log.unshift({ t: now, type: 'restored', kind: use.alloc.map((a) => a.kind).join('+'), amount: back, note: 'Restored: order cancelled or returned', ref });
+    sweepRewards(acct, now); // restored lots keep their own dates and may already be past validity
+    return back;
+  }
+  /** Balances plus the next lapse, for display. */
+  function rewardSummary(acct, now = Date.now()) {
+    const last = lastUseAt(acct), bal = rewardBalance(acct, now);
+    const live = acct.lots.filter((l) => l.remaining > 0 && now < lotExpiry(l, last)).map((l) => ({ ...l, expires: lotExpiry(l, last) })).sort((a, b) => a.expires - b.expires);
+    const next = live[0] ? { t: live[0].expires, amount: round2(live.filter((l) => l.expires === live[0].expires).reduce((a, l) => a + l.remaining, 0)) } : null;
+    return { ...bal, lastUsedAt: last, next, lots: live };
+  }
+
   /* ----------------------------------------------------- company simulator
    * Mirrors the "TrueShop 70% BV Simulator" sheet exactly, then enforces the
    * 70% hard cap (scales every stream pro-rata if inputs ever push above it).
@@ -258,7 +344,8 @@
     get DIRECT_RATE() { return DIRECT_RATE; }, get CASHBACK_RATE() { return CASHBACK_RATE; },
     OVERRIDE_KEY, DEFAULTS, effectiveOutflow, applyOverrides, currentSettings,
     COMPANY, CATEGORIES, INCOME_STREAMS, STREAM_COLORS, RETAINED_COLOR, HARD_CAP, HEADLINE_TOTAL, LEADERSHIP_RATE, CTO_POOLS, PACKAGES, WALLET_SPLIT, DEDUCTIONS, STEPS,
-    ESCROW_DAYS, BUYBACK_DAYS, RANKS,
+    ESCROW_DAYS, BUYBACK_DAYS, RANKS, DAY_MS, REWARDS,
+    newRewards, lotExpiry, sweepRewards, creditReward, rewardBalance, redeemRewards, reverseRedemption, rewardSummary, lastUseAt,
     round2, inr, num, pct,
     productBV, priceCart, binaryClosing, generationIncome, leadershipMatch, rankFor, splitCommission,
     stepsToPoints, companySimulation,
